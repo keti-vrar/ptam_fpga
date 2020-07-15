@@ -148,4 +148,5 @@ target_link_libraries(remote_ptam ${GTK_LIBRARIES} ${OpenCV_LIBS} ${catkin_LIBRA
 
 add_executable(ptam_visualizer src/PTAMVisualizer.cpp)
 add_dependencies(ptam_visualizer DEPS ${${PROJECT_NAME}_EXPORTED_TARGETS}})
+add_dependencies(ptam_visualizer ${PROJECT_NAME}_gencfg)
 target_link_libraries(ptam_visualizer ${catkin_LIBRARIES})

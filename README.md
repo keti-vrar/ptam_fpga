@@ -10,5 +10,7 @@ The baseline comes from ethzasl_ptam (https://github.com/ethz-asl/ethzasl_ptam.g
 Code changes added for running on top of Intel-Stratix10 SOC Development Board.
 - applied the MAP memory mapped data communication method btw HPS and FPGA.
 
+This is the master branch for running on HPS only.
+There'll be a sub branch for HPS-FPGA Parallel Processing mode.
 
 

@@ -1,5 +1,5 @@
 gui: True
-ImageSizeX: 752
+ImageSizeX: 640
 ImageSizeY: 480
 ARBuffer_width: 1200
 ARBuffer_height: 900
@@ -27,7 +27,7 @@ parent_frame: world
 TrackingQualityFoundPixels: 50
 UseKFPixelDist: True
 NoLevelZeroMapPoints: True
-FASTMethod: OAST16
+FASTMethod: FAST9_nonmax
 MaxStereoInitLoops: 4
 AutoInitPixel: 20
 

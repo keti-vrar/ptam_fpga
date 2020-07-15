@@ -1,8 +1,9 @@
 ptam_fpga
 ============
-# Updated on Jul/15th
+
+Updated on Jul/15th
 Code changes added for running on top of Intel-Stratix10 SOC Development Board.
-- Added changes using MMAP memory mapped data communication method btw HPS and FPGA.
+- applied the MAP memory mapped data communication method btw HPS and FPGA.
 
 
 ethzasl_ptam

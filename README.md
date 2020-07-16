@@ -13,4 +13,7 @@ Code changes added for running on top of Intel-Stratix10 SOC Development Board.
 This is the master branch for running on HPS only.
 There'll be a sub branch for HPS-FPGA Parallel Processing mode.
 
+[Updated on Jul/16th]
+Code changes applied by modified memory map. 
+Handling SmallBlurryImage will be implemented for parallel processing by this week.
 

@@ -28,21 +28,47 @@
 #define IMG_SIZE_80X60 0x000012C0     // 4800 bytes		// total 408000 (0006_39C0)
 // }
 
-using namespace CVD;
-using namespace std;
-//using namespace GVars3;
 
 // minho {
 static bool is_first_frame = true;
 static unsigned long int frame_cnt = 0;
 
-unsigned char *sdram_status_register = NULL;	// shared memory start address
-unsigned char *sdram_data_ptr = NULL;
-void *sdram_virtual_base;
+//void *sdram_virtual_base;
+//unsigned char *sdram_status_register = NULL;	
+//unsigned char *sdram_data_ptr = NULL;
+//unsigned char *sdram_data_ptr_level[LEVELS+1] = {};
+//int *sdram_data_ptr_cordet = NULL;
 
-const int img_size_of_level[LEVELS] = {IMG_SIZE_640X480, IMG_SIZE_320X240, IMG_SIZE_160X120, IMG_SIZE_80X60};
-unsigned char *sdram_data_ptr_level[LEVELS] = {};
-int *sdram_data_ptr_cordet = NULL;
+void *hps_virtual_base;
+unsigned char * imgData = NULL;
+unsigned char * imgDataLevels[LEVELS+1] = {};
+unsigned char * imgDataLev0;
+unsigned char * imgDataLev1;
+unsigned char * imgDataLev2;
+unsigned char * imgDataLev3;
+unsigned char * imgDataLev4;
+
+int * cornersPosLev0;
+int * cornersPosLev1;
+int * cornersPosLev2;
+int * cornersPosLev3;
+
+int * cornersNumLev0;
+int * cornersNumLev1;
+int * cornersNumLev2;
+int * cornersNumLev3;
+
+int *atomicStatus = NULL;	
+int *cornerNumber = NULL;
+
+
+const int img_size_of_level[LEVELS+1] = {
+     MEMORY_SIZE_LEVEL0,  // Lv.0 image 640x480
+     MEMORY_SIZE_LEVEL1,  // Lv.1 image 320x240
+     MEMORY_SIZE_LEVEL2,  // Lv.2 image 160x120
+     MEMORY_SIZE_LEVEL3,  // Lv.3 image 80x60
+     MEMORY_SIZE_LEVEL4   // Lv.4 image 40x30, SBI
+};
 
 struct sigaction sa;
 
@@ -52,96 +78,105 @@ void my_close();
 void segfault_sigaction(int signal, siginfo_t *si, void *arg);
 // minho }
 
+using namespace CVD;
+using namespace std;
+//using namespace GVars3;
+
 void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 {
-	// Perpares a Keyframe from an image. Generates pyramid levels, does FAST detection, etc.
-	// Does not fully populate the keyframe struct, but only does the bits needed for the tracker;
-	// e.g. does not perform FAST nonmax suppression. Things like that which are needed by the
-	// mapmaker but not the tracker go in MakeKeyFrame_Rest();
+   // Perpares a Keyframe from an image. Generates pyramid levels, does FAST detection, etc.
+   // Does not fully populate the keyframe struct, but only does the bits needed for the tracker;
+   // e.g. does not perform FAST nonmax suppression. Things like that which are needed by the
+   // mapmaker but not the tracker go in MakeKeyFrame_Rest();
 
-	// adaptive thresholds
-	static short thrs[4]={0,0,0,0};
-	double buff;
+   // adaptive thresholds
+   static short thrs[4]={0,0,0,0};
+   double buff;
 
-  // minho {
-  frame_cnt++;
+   // minho {
+   frame_cnt++;
 
-  if (is_first_frame) 
-  {
-    initMem();
-    is_first_frame = false;
-  }
-  // minho }
+   if (is_first_frame) 
+   {
+      initMem();
+      is_first_frame = false;
+   }
+   // minho }
 
-	// First, copy out the image data to the pyramid's zero level.
-	aLevels[0].im.resize(im.size());
-	copy(im, aLevels[0].im);
+   // First, copy out the image data to the pyramid's zero level.
+   aLevels[0].im.resize(im.size());
+   copy(im, aLevels[0].im);
 
-  // minho every frame {
-  // SET the image data (im) to halfsample the image.
-  memset(sdram_status_register + 8, 0, MY_SDRAM_SPAN - 8);      // memory initialize
-  memcpy(sdram_data_ptr_level[0], im.begin(), im.totalsize());
+   // minho every frame {
+   // SET the image data (im) to halfsample the image.
+   // void * memset ( void * ptr, int value, size_t num );
+   memset(imgData, 0, SDRAM_SIZE);      // memory initialize
+   memcpy(imgDataLevels[0], im.begin(), im.totalsize());
 
-  *sdram_status_register = 1;       // processor write is over
-  unsigned char status = 0;
-  while(1)    // polling...
-  {
-    status = *(sdram_status_register);
-    printf("Waiting for frame image processing... status : %d\r", status);  // '\r' : carriage return
+   *atomicStatus = 1;       // processor write is over
+   unsigned char status = 0;
+   while(1)    // polling...
+   {
+      status = *(atomicStatus);
+      printf("Waiting for frame image processing... status : %d\r", status);  // '\r' : carriage return
 
-    // If status is 0, GET the halfsampled image data and corner detection result
-    if (status != 1)
-    {
-      printf("status : %d, frame_cnt : %d                                     \n", status, frame_cnt);
-
-      // Corner detection results data 
-      int *ptr_cordet = sdram_data_ptr_cordet;
-      // printf("Corner detection results memory : %p\n", ptr_cordet);
-      int *cordet_size[LEVELS] = { ptr_cordet, NULL, NULL, NULL };
-
-      for (int i = 0; i < LEVELS; i++)
+      // If status is 0, GET the halfsampled image data and corner detection result
+      if (status != 1)
       {
-        Level &lev = aLevels[i];
+         printf("status : %d, frame_cnt : %d                                     \n", status, frame_cnt);
 
-        if (i != 0)
-        { 
-          // Image data has 4 levels. It should be accessed by fixed address.
-          // Image of level 0 alrady existed above code (im)
-          // e.g. if base is 0000_0000,
-          //      0000_0000 - 0001_2bff level 1 (320*240 = 76800 = 0001_2c00)
-          //      0001_2c00 - 0001_76ff level 2 (160*120 = 19200 = 0000_4b00)
-          //      0001_7700 - 0001_89bf level 3 (80*60 = 4800 = 0000_12c0)
+         // Corner detection results data 
+         //int *ptr_cordet = sdram_data_ptr_cordet;
+         int * ptr_cordet = cornersPosLev0;
+         int * cornersNumber[LEVELS] = {cornersNumLev0, cornersNumLev1, cornersNumLev2, cornersNumLev3};
+         int * cornersPos[LEVELS] = {cornersPosLev0, cornersPosLev1, cornersPosLev2, cornersPosLev3};
 
-          lev.im.resize(aLevels[i-1].im.size() / 2);       // image resize
-          copy(BasicImage<byte>(sdram_data_ptr_level[i], lev.im.size()), lev.im);  // copy image data to "lev.im"
-          // printf("Get image data of level [%d] from memory [%p]\n", i, sdram_data_ptr_level[i]);
+         // printf("Corner detection results memory : %p\n", ptr_cordet);
+         //int *cordet_size[LEVELS] = { ptr_cordet, NULL, NULL, NULL };
 
-          // corner detection result array size
-          cordet_size[i] = cordet_size[i-1] + *(cordet_size[i-1]) + 1;
-        }
+         for (int i = 0; i < LEVELS; i++)
+         {
+            Level &lev = aLevels[i];
 
-        lev.vCorners.clear();
-        lev.vCandidates.clear();
-        lev.vMaxCorners.clear();
+            if (i != 0)
+            { 
+               // Image data has 4 levels. It should be accessed by fixed address.
+               // Image of level 0 alrady existed above code (im)
+               // e.g. if base is 0000_0000,
+               //      0000_0000 - 0001_2bff level 1 (320*240 = 76800 = 0001_2c00)
+               //      0001_2c00 - 0001_76ff level 2 (160*120 = 19200 = 0000_4b00)
+               //      0001_7700 - 0001_89bf level 3 (80*60 = 4800 = 0000_12c0)
+               lev.im.resize(aLevels[i-1].im.size() / 2);       // image resize
+               copy(BasicImage<byte>(imgDataLevels[i], lev.im.size()), lev.im);  // copy image data to "lev.im"
+               // printf("Get image data of level [%d] from memory [%p]\n", i, sdram_data_ptr_level[i]);
 
-        // Corner detection data from memory has ONE integer(array size) and array data.
-        // e.g. if base is 0001_89c0,
-        //      0001_89c0 - 0001_89c3 level 0 image corner detection result array size (integer = 4 bytes)
-        //      0001_89c4 - ...       corner detection result array data
-        //      This leads to level 3.
+               // corner detection result array size
+               //cornersNumber[i] = cornersNumber[i-1] + *(cornersNumber[i-1]) + 1;
+            }
+            lev.vCorners.clear();
+            lev.vCandidates.clear();
+            lev.vMaxCorners.clear();
 
-        // printf("Level %d Corner detection results size : %d [%p]\n", i, *cordet_size[i], cordet_size[i]);
-        // "cordet_size" means how many integers are next.
-        int *result_data = cordet_size[i] + 1;
-        vector<ImageRef> lev_cordet;
-        for (int el = 0; el < (*cordet_size[i]) / 2; el+=2) 
-        {
-          lev_cordet.push_back( ImageRef(*(result_data + el), *(result_data + el + 1)) );
-        }
+            // Corner detection data from memory has ONE integer(array size) and array data.
+            // e.g. if base is 0001_89c0,
+            //      0001_89c0 - 0001_89c3 level 0 image corner detection result array size (integer = 4 bytes)
+            //      0001_89c4 - ...       corner detection result array data
+            //      This leads to level 3.
 
-        // Assign results
-        lev.vCorners = lev_cordet;
-        // printf("[F %d][LEVEL %d] Corner detection results size : %d\n", frame_cnt, i, lev.vCorners.size());
+            // printf("Level %d Corner detection results size : %d [%p]\n", i, *cordet_size[i], cordet_size[i]);
+            // "cordet_size" means how many integers are next.
+            //int *result_data = cordet_size[i] + 1;
+            int * result = cornersPos[i];            
+
+            vector<ImageRef> levCorners;
+            for (int el = 0; el < (*cornersNumber[i]) / 2; el+=2) 
+            {
+               levCorners.push_back( ImageRef(*(result + el), *(result + el + 1)) );
+            }
+
+            // Assign results
+            lev.vCorners = levCorners;
+            // printf("[F %d][LEVEL %d] Corner detection results size : %d\n", frame_cnt, i, lev.vCorners.size());
 
         const ptam::PtamParamsConfig& pPars = PtamParameters::varparams();
         if (pPars.AdaptiveThrs)
@@ -364,7 +399,7 @@ void initMem()
 
   // (offset % PAGE_SIZE) must equals 0.
   // In other words, the offset is a multiple of the page size.
-  page_offset = MY_SDRAM_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1);
+  page_offset = SDRAM_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1);
   printf("page_offset : 0x%x\n", page_offset);
 
   // 1. Open "/dev/mem"
@@ -377,34 +412,53 @@ void initMem()
 
   // 2. mmap()
   // void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
-  sdram_virtual_base = mmap( NULL,
-                            MY_SDRAM_SPAN, 
-                            ( PROT_READ | PROT_WRITE ), 
-                            MAP_SHARED, 
-                            fd, 
-                            page_offset );
+  hps_virtual_base = mmap( NULL,
+                           SDRAM_SIZE, 
+                           (PROT_READ | PROT_WRITE), 
+                           MAP_SHARED, 
+                           fd, 
+                           page_offset );
                             
-  if (sdram_virtual_base == MAP_FAILED)
+  if (hps_virtual_base == MAP_FAILED)
   {
     printf("ERROR: mmap() failed...\n%s\n", strerror(errno));
     close(fd);
     return;
-  }
+  } 
   else
   {
-    printf("sdram_virtual_base : %p\n", sdram_virtual_base);	
+    printf("hps_virtual_base : %p\n", hps_virtual_base);	
   }
 
-  sdram_status_register = (unsigned char *)(sdram_virtual_base);
-  sdram_data_ptr = (unsigned char *)(sdram_status_register + 8);
+  imgData = (unsigned char *)(hps_virtual_base);
+  imgDataLev0 = imgData;
+  imgDataLev1 = imgData + MEMORY_SIZE_LEVEL0;
+  imgDataLev2 = imgData + MEMORY_SIZE_LEVEL1;
+  imgDataLev3 = imgData + MEMORY_SIZE_LEVEL2;
+  imgDataLev4 = imgData + MEMORY_SIZE_LEVEL3;
 
+  cornersPosLev0 = (int *)(imgDataLev4 + MEMORY_SIZE_LEVEL4);  
+  cornersPosLev1 = cornersPosLev0 + *(cornersNumLev0);
+  cornersPosLev2 = cornersPosLev1 + *(cornersNumLev1);
+  cornersPosLev3 = cornersPosLev2 + *(cornersNumLev2); 
+
+  /* LW_AXI_H2F register */
+  atomicStatus = (int *)(hps_virtual_base + STATUS_REG_0_OFFSET);
+  cornersNumLev0 = (int *)(hps_virtual_base + N_CORNERS_LEVEL0_OFFSET);
+  cornersNumLev1 = (int *)(hps_virtual_base + N_CORNERS_LEVEL1_OFFSET);
+  cornersNumLev2 = (int *)(hps_virtual_base + N_CORNERS_LEVEL2_OFFSET);
+  cornersNumLev3 = (int *)(hps_virtual_base + N_CORNERS_LEVEL3_OFFSET);
+
+/*
   sdram_data_ptr_level[0] = sdram_data_ptr;
+  
   for (int i = 1; i < LEVELS; i++)
   {
     sdram_data_ptr_level[i] = sdram_data_ptr_level[i-1] + img_size_of_level[i-1];
   }
 
   sdram_data_ptr_cordet = (int *)( sdram_data_ptr_level[3] + img_size_of_level[3] );
+*/
 
   // Signal Handling
   memset(&sa, 0, sizeof(struct sigaction));
@@ -434,9 +488,9 @@ void my_close() {
 	printf("Ptam end...\n");
 
 	printf("unmap the memory...\n");
-	printf("sdram_virtual_base : %p\n", sdram_virtual_base);
-	printf("memory size : %d\n", MY_SDRAM_SPAN);
-	munmap(sdram_virtual_base, MY_SDRAM_SPAN);
+	printf("hps_virtual_base : %p\n", hps_virtual_base);
+	printf("memory size : %d\n", SDRAM_SIZE);
+	munmap(hps_virtual_base, SDRAM_SIZE);
 
 	printf("================================================\n");
 }

@@ -29,12 +29,31 @@ using namespace TooN;
 
 #include "ptam/Params.h"
 
+#include <signal.h>
+#include <boost/lexical_cast.hpp>   // int to string
+
 struct MapPoint;
 class SmallBlurryImage;
 //slynen{ reprojection
 struct TrackerData;
 //}
 #define LEVELS 4
+
+#define SDRAM_BASE 0x0
+#define SDRAM_SIZE 0xA00000  // 10240 KByte
+
+#define MEMORY_SIZE_LEVEL0 0x4B000 // Lv.0 image 640x480
+#define MEMORY_SIZE_LEVEL1 0x12C00 // Lv.1 image 320x240
+#define MEMORY_SIZE_LEVEL2 0x4B00  // Lv.2 image 160x120
+#define MEMORY_SIZE_LEVEL3 0x12C0  // Lv.3 image 80x60
+#define MEMORY_SIZE_LEVEL4 0x4B0   // Lv.4 image 40x30 for SBI
+
+#define STATUS_REG_0_OFFSET     0xF9000000
+#define N_CORNERS_LEVEL0_OFFSET 0xF9000004
+#define N_CORNERS_LEVEL1_OFFSET 0xF9000008
+#define N_CORNERS_LEVEL2_OFFSET 0xF900000C
+#define N_CORNERS_LEVEL3_OFFSET 0xF9000010
+
 
 // Candidate: a feature in an image which could be made into a map point
 struct Candidate
@@ -96,7 +115,7 @@ struct KeyFrame
   void MakeKeyFrame_Lite(CVD::BasicImage<CVD::byte> &im);   // This takes an image and calculates pyramid levels etc to fill the
   // keyframe data structures with everything that's needed by the tracker..
   void MakeKeyFrame_Rest();                                 // ... while this calculates the rest of the data which the mapmaker needs.
-
+  
   //slynen{ reprojection
   std::vector<boost::shared_ptr<MapPoint> > vpPoints;                          // stores the map points found in this keyframe
   enum { iBestPointsCount = 5 };                    // how many points to use for keyframe evaluation

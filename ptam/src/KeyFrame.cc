@@ -39,7 +39,9 @@ static unsigned long int frame_cnt = 0;
 //unsigned char *sdram_data_ptr_level[LEVELS+1] = {};
 //int *sdram_data_ptr_cordet = NULL;
 
-void *hps_virtual_base;
+void * hps_virtual_base;
+void * lw_axi_h2f_base;
+
 unsigned char * imgData = NULL;
 unsigned char * imgDataLevels[LEVELS+1] = {};
 unsigned char * imgDataLev0;
@@ -110,7 +112,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    // minho every frame {
    // SET the image data (im) to halfsample the image.
    // void * memset ( void * ptr, int value, size_t num );
-   memset(imgData, 0, SDRAM_SIZE);      // memory initialize
+   memset(imgData, 0, SDRAM_SPAN);      // memory initialize
    memcpy(imgDataLevels[0], im.begin(), im.totalsize());
 
    *atomicStatus = 1;       // processor write is over
@@ -387,112 +389,111 @@ struct LevelHelpersFiller // Code which should be initialised on init goes here;
     }
   }
 };
+
 static LevelHelpersFiller foo;
 
-/////////////////////////////////////////
 // minho {
 void initMem() 
 {
-  printf("Init the variabels for mmap()...\n");
-  int fd;                                       // "/dev/mem" file description
-  off_t page_offset;                            // page offset
+   printf("Init the variabels for mmap()...\n");
+   int fd;   // "/dev/mem" file description
+   off_t hps_base_offset, axi_h2f_offset;   // page offset
 
-  // (offset % PAGE_SIZE) must equals 0.
-  // In other words, the offset is a multiple of the page size.
-  page_offset = SDRAM_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1);
-  printf("page_offset : 0x%x\n", page_offset);
+   // (offset % PAGE_SIZE) must equals 0.
+   // In other words, the offset is a multiple of the page size.
+   hps_base_offset = SDRAM_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1);
+   axi_h2f_offset = AXI_LW_MEM_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1);
+   printf("hps_base_offset : 0x%p, axi_h2f_offset : 0x%p\n", hps_base_offset, axi_h2f_offset);
 
-  // 1. Open "/dev/mem"
-  printf("Open \"/dev/mem\" for memmory access...\n");
-  if ((fd = open("/dev/mem", (O_RDWR | O_SYNC))) == -1)
-  {
-    printf("ERROR: could not open \"/dev/mem\"...\n");
-    return;
-  }
+   // 1. Open "/dev/mem"
+   if ((fd = open("/dev/mem", (O_RDWR | O_SYNC))) == -1)
+   {
+      printf("ERROR: could not open \"/dev/mem\"...\n");
+      return;
+   }
+   printf("Opened \"/dev/mem\" for memmory mapped access.\n");
 
-  // 2. mmap()
-  // void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
-  hps_virtual_base = mmap( NULL,
-                           SDRAM_SIZE, 
-                           (PROT_READ | PROT_WRITE), 
-                           MAP_SHARED, 
-                           fd, 
-                           page_offset );
-                            
-  if (hps_virtual_base == MAP_FAILED)
-  {
-    printf("ERROR: mmap() failed...\n%s\n", strerror(errno));
-    close(fd);
-    return;
-  } 
-  else
-  {
-    printf("hps_virtual_base : %p\n", hps_virtual_base);	
-  }
+   // 2. mmap()
+   // void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+   hps_virtual_base = mmap(NULL, SDRAM_SPAN, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, hps_base_offset);
+   lw_axi_h2f_base = mmap(NULL, AXI_LW_MEM_SPAN, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, axi_h2f_offset);
+                             
+   if (hps_virtual_base == MAP_FAILED || lw_axi_h2f_base == MAP_FAILED)
+   {
+      printf("ERROR: mmap() failed...\n%s\n", strerror(errno));
+      close(fd);
+      return;
+   } 
+   else
+   {
+      printf("hps_virtual_base : %p, lw_axi_h2f_base: %p\n", hps_virtual_base, lw_axi_h2f_base);	
+   }
 
-  imgData = (unsigned char *)(hps_virtual_base);
-  imgDataLev0 = imgData;
-  imgDataLev1 = imgData + MEMORY_SIZE_LEVEL0;
-  imgDataLev2 = imgData + MEMORY_SIZE_LEVEL1;
-  imgDataLev3 = imgData + MEMORY_SIZE_LEVEL2;
-  imgDataLev4 = imgData + MEMORY_SIZE_LEVEL3;
+   imgData = (unsigned char *)(hps_virtual_base);
+   imgDataLev0 = imgData;
+   imgDataLev1 = imgData + MEMORY_SIZE_LEVEL0;
+   imgDataLev2 = imgData + MEMORY_SIZE_LEVEL1;
+   imgDataLev3 = imgData + MEMORY_SIZE_LEVEL2;
+   imgDataLev4 = imgData + MEMORY_SIZE_LEVEL3;
 
-  cornersPosLev0 = (int *)(imgDataLev4 + MEMORY_SIZE_LEVEL4);  
-  cornersPosLev1 = cornersPosLev0 + *(cornersNumLev0);
-  cornersPosLev2 = cornersPosLev1 + *(cornersNumLev1);
-  cornersPosLev3 = cornersPosLev2 + *(cornersNumLev2); 
+   cornersPosLev0 = (int *)(imgDataLev4 + MEMORY_SIZE_LEVEL4);  
+   cornersPosLev1 = cornersPosLev0 + *(cornersNumLev0);
+   cornersPosLev2 = cornersPosLev1 + *(cornersNumLev1);
+   cornersPosLev3 = cornersPosLev2 + *(cornersNumLev2); 
 
-  /* LW_AXI_H2F register */
-  atomicStatus = (int *)(hps_virtual_base + STATUS_REG_0_OFFSET);
-  cornersNumLev0 = (int *)(hps_virtual_base + N_CORNERS_LEVEL0_OFFSET);
-  cornersNumLev1 = (int *)(hps_virtual_base + N_CORNERS_LEVEL1_OFFSET);
-  cornersNumLev2 = (int *)(hps_virtual_base + N_CORNERS_LEVEL2_OFFSET);
-  cornersNumLev3 = (int *)(hps_virtual_base + N_CORNERS_LEVEL3_OFFSET);
+   /* LW_AXI_H2F register */
+   atomicStatus = (int *)(lw_axi_h2f_base + STATUS_REG_0_OFFSET);
+   cornersNumLev0 = (int *)(lw_axi_h2f_base + N_CORNERS_LEVEL0_OFFSET);
+   cornersNumLev1 = (int *)(lw_axi_h2f_base + N_CORNERS_LEVEL1_OFFSET);
+   cornersNumLev2 = (int *)(lw_axi_h2f_base + N_CORNERS_LEVEL2_OFFSET);
+   cornersNumLev3 = (int *)(lw_axi_h2f_base + N_CORNERS_LEVEL3_OFFSET);
 
 /*
-  sdram_data_ptr_level[0] = sdram_data_ptr;
+   sdram_data_ptr_level[0] = sdram_data_ptr;
   
-  for (int i = 1; i < LEVELS; i++)
-  {
-    sdram_data_ptr_level[i] = sdram_data_ptr_level[i-1] + img_size_of_level[i-1];
-  }
+   for (int i = 1; i < LEVELS; i++)
+   {
+      sdram_data_ptr_level[i] = sdram_data_ptr_level[i-1] + img_size_of_level[i-1];
+   }
 
-  sdram_data_ptr_cordet = (int *)( sdram_data_ptr_level[3] + img_size_of_level[3] );
+   sdram_data_ptr_cordet = (int *)( sdram_data_ptr_level[3] + img_size_of_level[3] );
 */
 
-  // Signal Handling
-  memset(&sa, 0, sizeof(struct sigaction));
-  sigemptyset(&sa.sa_mask);
-  sa.sa_sigaction = segfault_sigaction;
-  sa.sa_flags   = SA_SIGINFO;
+   // Signal Handling
+   memset(&sa, 0, sizeof(struct sigaction));
+   sigemptyset(&sa.sa_mask);
+   sa.sa_sigaction = segfault_sigaction;
+   sa.sa_flags   = SA_SIGINFO;
 
-  signal(SIGINT, on_close);         // user interrupt (Ctrl + c)
-  sigaction(SIGSEGV, &sa, NULL);    // Segmentation Fault
+   signal(SIGINT, on_close);         // user interrupt (Ctrl + c)
+   sigaction(SIGSEGV, &sa, NULL);    // Segmentation Fault
 }
 
 void on_close(int signal)
 {
-	my_close();
-	exit(EXIT_SUCCESS);
+   my_close();
+   exit(EXIT_SUCCESS);
 }
 
-void segfault_sigaction(int signal, siginfo_t *si, void *arg) {
-	printf("Caught segfault at address %p\n", si->si_addr);
-	my_close();
-	exit(EXIT_SUCCESS); 
+void segfault_sigaction(int signal, siginfo_t *si, void *arg) 
+{
+   printf("Caught segfault at address %p\n", si->si_addr);
+   my_close();
+   exit(EXIT_SUCCESS); 
 }
 
-void my_close() {
-	printf("\n");
-  printf("================================================\n");
-	printf("Ptam end...\n");
+void my_close() 
+{
+   printf("\n");
+   printf("================================================\n");
+   printf("Ptam end...\n");
 
-	printf("unmap the memory...\n");
-	printf("hps_virtual_base : %p\n", hps_virtual_base);
-	printf("memory size : %d\n", SDRAM_SIZE);
-	munmap(hps_virtual_base, SDRAM_SIZE);
-
-	printf("================================================\n");
+   printf("unmap the memory...\n");
+   //printf("hps_virtual_base : %p\n", hps_virtual_base);
+   //printf("memory size : %d\n", SDRAM_SPAN);
+   munmap(hps_virtual_base, SDRAM_SPAN);
+   munmap(lw_axi_h2f_base, AXI_LW_MEM_SPAN);
+   printf("================================================\n");
 }
 // minho }
 

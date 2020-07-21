@@ -17,3 +17,6 @@ There'll be a sub branch for HPS-FPGA Parallel Processing mode.
 Code changes applied by modified memory map. 
 Handling SmallBlurryImage will be implemented for parallel processing by this week.
 
+[Updated on Jul/20th]
+Modified the memory map by using multiple memory mapped access.
+YS.Shon has verified on Stratix10 board.

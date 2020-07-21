@@ -23,4 +23,4 @@ YS.Shon has verified on Stratix10 board.
 
 [Updated on Jul/21st]
 Code changes applied to use small image given by FPGA.
-The image is stored into aLevel[4].im. Hence SW' halfSampling is not required in SmallBlurryImage creation
+The image is stored into aLevel[4].im. Hence SW' halfSampling is not required in SmallBlurryImage creation.

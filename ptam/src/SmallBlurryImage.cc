@@ -37,7 +37,11 @@ void SmallBlurryImage::MakeFromKF(KeyFrame& kf, double dBlur)
   mimTemplate.resize(mirSize);
 
   mbMadeJacs = false;
-  halfSample(kf.aLevels[3].im, mimSmall);
+  
+  // Not required since FPGA already provided with lev4(40x30) small image too. 
+  //halfSample(kf.aLevels[3].im, mimSmall);
+  copy(kf.aLevels[4].im, mimSmall);
+
   ImageRef ir;
   unsigned int nSum = 0;
   do

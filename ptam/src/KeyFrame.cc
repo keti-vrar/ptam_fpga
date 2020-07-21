@@ -39,39 +39,6 @@ static unsigned long int frame_cnt = 0;
 //unsigned char *sdram_data_ptr_level[LEVELS+1] = {};
 //int *sdram_data_ptr_cordet = NULL;
 
-void * hps_virtual_base;
-void * lw_axi_h2f_base;
-
-unsigned char * imgData = NULL;
-unsigned char * imgDataLevels[LEVELS+1] = {};
-unsigned char * imgDataLev0;
-unsigned char * imgDataLev1;
-unsigned char * imgDataLev2;
-unsigned char * imgDataLev3;
-unsigned char * imgDataLev4;
-
-int * cornersPosLev0;
-int * cornersPosLev1;
-int * cornersPosLev2;
-int * cornersPosLev3;
-
-int * cornersNumLev0;
-int * cornersNumLev1;
-int * cornersNumLev2;
-int * cornersNumLev3;
-
-int *atomicStatus = NULL;	
-int *cornerNumber = NULL;
-
-
-const int img_size_of_level[LEVELS+1] = {
-     MEMORY_SIZE_LEVEL0,  // Lv.0 image 640x480
-     MEMORY_SIZE_LEVEL1,  // Lv.1 image 320x240
-     MEMORY_SIZE_LEVEL2,  // Lv.2 image 160x120
-     MEMORY_SIZE_LEVEL3,  // Lv.3 image 80x60
-     MEMORY_SIZE_LEVEL4   // Lv.4 image 40x30, SBI
-};
-
 struct sigaction sa;
 
 void initMem();
@@ -79,6 +46,30 @@ void on_close(int signal);
 void my_close();
 void segfault_sigaction(int signal, siginfo_t *si, void *arg);
 // minho }
+
+void *hps_virtual_base;
+void *lw_axi_h2f_base;
+
+unsigned char *imgData = NULL;
+unsigned char *imgDataLevels[LEVELS+1] = {};
+unsigned char *imgDataLev0;
+unsigned char *imgDataLev1;
+unsigned char *imgDataLev2;
+unsigned char *imgDataLev3;
+unsigned char *imgDataLev4;
+
+int *cornersPosLev0;
+int *cornersPosLev1;
+int *cornersPosLev2;
+int *cornersPosLev3;
+
+int *cornersNumLev0;
+int *cornersNumLev1;
+int *cornersNumLev2;
+int *cornersNumLev3;
+
+int *atomicStatus = NULL;	
+int *cornerNumber = NULL;
 
 using namespace CVD;
 using namespace std;
@@ -136,7 +127,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
          // printf("Corner detection results memory : %p\n", ptr_cordet);
          //int *cordet_size[LEVELS] = { ptr_cordet, NULL, NULL, NULL };
 
-         for (int i = 0; i < LEVELS; i++)
+         for (int i = 0; i < LEVELS+1; i++) // To handle SBI into Keyframe
          {
             Level &lev = aLevels[i];
 
@@ -155,6 +146,10 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
                // corner detection result array size
                //cornersNumber[i] = cornersNumber[i-1] + *(cornersNumber[i-1]) + 1;
             }
+            if (i == 4) { // Don't process since lev.4 is requird only for SBI input.
+               break;
+            }
+
             lev.vCorners.clear();
             lev.vCandidates.clear();
             lev.vMaxCorners.clear();

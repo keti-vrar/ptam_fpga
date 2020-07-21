@@ -58,6 +58,15 @@ struct TrackerData;
 #define N_CORNERS_LEVEL3_OFFSET 0x10
 
 
+const int img_size_of_level[LEVELS+1] = {
+     MEMORY_SIZE_LEVEL0,  // Lv.0 image 640x480
+     MEMORY_SIZE_LEVEL1,  // Lv.1 image 320x240
+     MEMORY_SIZE_LEVEL2,  // Lv.2 image 160x120
+     MEMORY_SIZE_LEVEL3,  // Lv.3 image 80x60
+     MEMORY_SIZE_LEVEL4   // Lv.4 image 40x30, SBI
+};
+
+
 // Candidate: a feature in an image which could be made into a map point
 struct Candidate
 {
@@ -109,7 +118,7 @@ struct KeyFrame
   }
   SE3<> se3CfromW;    // The coordinate frame of this key-frame as a Camera-From-World transformation
   bool bFixed;      // Is the coordinate frame of this keyframe fixed? (only true for first KF!)
-  Level aLevels[LEVELS];  // Images, corners, etc lives in this array of pyramid levels
+  Level aLevels[LEVELS+1];  // Images, corners, etc lives in this array of pyramid levels
   std::map<boost::shared_ptr<MapPoint>, Measurement> mMeasurements;           // All the measurements associated with the keyframe
 
   //slynen pcl interface{

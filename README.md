@@ -20,3 +20,7 @@ Handling SmallBlurryImage will be implemented for parallel processing by this we
 [Updated on Jul/20th]
 Modified the memory map by using multiple memory mapped access.
 YS.Shon has verified on Stratix10 board.
+
+[Updated on Jul/21st]
+Code changes applied to use small image given by FPGA.
+The image is stored into aLevel[4].im. Hence SW' halfSampling is not required in SmallBlurryImage creation.

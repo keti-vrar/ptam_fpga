@@ -24,3 +24,6 @@ YS.Shon has verified on Stratix10 board.
 [Updated on Jul/21st]
 Code changes applied to use small image given by FPGA.
 The image is stored into aLevel[4].im. Hence SW' halfSampling is not required in SmallBlurryImage creation.
+
+[Updated on Jul/27st]
+Changes appiled into MakeFiles of Third party library. This makes the aarch64 mode support enabled as well as compilation error when used the default git master code.

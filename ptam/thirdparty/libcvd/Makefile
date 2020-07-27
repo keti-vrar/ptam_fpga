@@ -1,4 +1,4 @@
-ifeq ("$(shell arch)", "armv7l")
+ifeq ("$(shell arch)", "aarch64")
      CXXFLAGS+= -mfpu=neon
 endif
 CXXFLAGS+= -fsee -funsafe-loop-optimizations -ffinite-math-only -fno-signed-zeros -fno-math-errno -funroll-loops
@@ -9,6 +9,8 @@ git_checkedout:
 	mkdir -p sources
 	git clone https://github.com/edrosten/libcvd.git sources
 	cd sources && git checkout 26bb46b9845383a4724a5e24db42dc27d41477d4
+	cd sources && wget -O config.guess 'https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
+	cd sources && wget -O config.sub 'https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
 	touch git_checkedout
 	
 libcvd_built: 

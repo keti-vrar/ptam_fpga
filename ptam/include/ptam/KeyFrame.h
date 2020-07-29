@@ -39,31 +39,31 @@ struct TrackerData;
 //}
 #define LEVELS 4
 
-#define SDRAM_BASE 0x0
+#define SDRAM_BASE 0x00000000
 #define SDRAM_SPAN 0xA00000  // 10MB KByte
 
 #define AXI_LW_MEM_BASE 0xF9000000
 #define AXI_LW_MEM_SPAN	0x200000 // 2MB
 
-#define MEMORY_SIZE_LEVEL0 0x4B000 // Lv.0 image 640x480
-#define MEMORY_SIZE_LEVEL1 0x12C00 // Lv.1 image 320x240
-#define MEMORY_SIZE_LEVEL2 0x4B00  // Lv.2 image 160x120
-#define MEMORY_SIZE_LEVEL3 0x12C0  // Lv.3 image 80x60
-#define MEMORY_SIZE_LEVEL4 0x4B0   // Lv.4 image 40x30 for SBI
+#define MEM_SIZE_LEV0 0x4B000 // Lv.0 image 640x480
+#define MEM_SIZE_LEV1 0x12C00 // Lv.1 image 320x240
+#define MEM_SIZE_LEV2 0x4B00  // Lv.2 image 160x120
+#define MEM_SIZE_LEV3 0x12C0  // Lv.3 image 80x60
+#define MEM_SIZE_LEV4 0x4B0   // Lv.4 image 40x30 for SBI
 
-#define STATUS_REG_0_OFFSET     0x0
-#define N_CORNERS_LEVEL0_OFFSET 0x4
-#define N_CORNERS_LEVEL1_OFFSET 0x8
-#define N_CORNERS_LEVEL2_OFFSET 0xC
-#define N_CORNERS_LEVEL3_OFFSET 0x10
+#define STATUS_REG_0_OFFSET 0x0
+#define N_CORNERS_LEV0_OFFSET 0x4
+#define N_CORNERS_LEV1_OFFSET 0x8
+#define N_CORNERS_LEV2_OFFSET 0xC
+#define N_CORNERS_LEV3_OFFSET 0x10
 
 
 const int img_size_of_level[LEVELS+1] = {
-     MEMORY_SIZE_LEVEL0,  // Lv.0 image 640x480
-     MEMORY_SIZE_LEVEL1,  // Lv.1 image 320x240
-     MEMORY_SIZE_LEVEL2,  // Lv.2 image 160x120
-     MEMORY_SIZE_LEVEL3,  // Lv.3 image 80x60
-     MEMORY_SIZE_LEVEL4   // Lv.4 image 40x30, SBI
+     MEM_SIZE_LEV0,  // Lv.0 image 640x48
+     MEM_SIZE_LEV1,  // Lv.1 image 320x240
+     MEM_SIZE_LEV2,  // Lv.2 image 160x120
+     MEM_SIZE_LEV3,  // Lv.3 image 80x60
+     MEM_SIZE_LEV4   // Lv.4 image 40x30, SBI
 };
 
 

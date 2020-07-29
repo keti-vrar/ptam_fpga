@@ -18,14 +18,10 @@
 #include <boost/lexical_cast.hpp>   // int to string
 #include <signal.h>
 
-#define MY_SDRAM_BASE 0x10000000		// my SDRAM base address
-// #define MY_SDRAM_SPAN 0x20000000		// size = 512 MB
-#define MY_SDRAM_SPAN 0x00A00000   // size = 10 MB
-
-#define IMG_SIZE_640X480 0x0004b000   // 307200 bytes
-#define IMG_SIZE_320X240 0x00012C00   // 76800 bytes
-#define IMG_SIZE_160X120 0x00004B00   // 19200 bytes
-#define IMG_SIZE_80X60 0x000012C0     // 4800 bytes		// total 408000 (0006_39C0)
+#define IMG_SIZE_640X480 0x0004b000	// 307200 bytes
+#define IMG_SIZE_320X240 0x00012C00	// 76800 bytes
+#define IMG_SIZE_160X120 0x00004B00	// 19200 bytes
+#define IMG_SIZE_80X60 0x000012C0	// 4800 bytes	// total 408000 (0006_39C0)
 // }
 
 
@@ -41,7 +37,7 @@ static unsigned long int frame_cnt = 0;
 
 struct sigaction sa;
 
-void initMem();
+void mmap_init();
 void on_close(int signal);
 void my_close();
 void segfault_sigaction(int signal, siginfo_t *si, void *arg);
@@ -50,26 +46,12 @@ void segfault_sigaction(int signal, siginfo_t *si, void *arg);
 void *hps_virtual_base;
 void *lw_axi_h2f_base;
 
-unsigned char *imgData = NULL;
-unsigned char *imgDataLevels[LEVELS+1] = {};
-unsigned char *imgDataLev0;
-unsigned char *imgDataLev1;
-unsigned char *imgDataLev2;
-unsigned char *imgDataLev3;
-unsigned char *imgDataLev4;
+unsigned char *IMG_Lev[LEVELS+1] = {};
+unsigned char *pCorners_Lev[LEVELS] = {};
+unsigned char *nCorners_Lev[LEVELS] = {};
 
-int *cornersPosLev0;
-int *cornersPosLev1;
-int *cornersPosLev2;
-int *cornersPosLev3;
-
-int *cornersNumLev0;
-int *cornersNumLev1;
-int *cornersNumLev2;
-int *cornersNumLev3;
-
-int *atomicStatus = NULL;	
-int *cornerNumber = NULL;
+unsigned char *statusRegister = NULL;	
+unsigned char *cornerNumber = NULL;
 
 using namespace CVD;
 using namespace std;
@@ -91,7 +73,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
    if (is_first_frame) 
    {
-      initMem();
+      mmap_init();
       is_first_frame = false;
    }
    // minho }
@@ -103,26 +85,26 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    // minho every frame {
    // SET the image data (im) to halfsample the image.
    // void * memset ( void * ptr, int value, size_t num );
-   memset(imgData, 0, SDRAM_SPAN);      // memory initialize
-   memcpy(imgDataLevels[0], im.begin(), im.totalsize());
+   memset(IMG_Lev[0], 0, SDRAM_SPAN); // memory initialize
+   memcpy(IMG_Lev[0], im.begin(), im.totalsize());
 
-   *atomicStatus = 1;       // processor write is over
+   *statusRegister = 1; // processor write is over
    unsigned char status = 0;
-   while(1)    // polling...
+   while(1) // polling...
    {
-      status = *(atomicStatus);
-      printf("Waiting for frame image processing... status : %d\r", status);  // '\r' : carriage return
+      status = *(statusRegister);
+      printf("Waiting for images given by FPGA Processing... Checking Status: %d\r", status); 
 
       // If status is 0, GET the halfsampled image data and corner detection result
       if (status != 1)
       {
-         printf("status : %d, frame_cnt : %d                                     \n", status, frame_cnt);
+         printf("status : %d, frame_cnt : %d\n", status, frame_cnt);
 
          // Corner detection results data 
          //int *ptr_cordet = sdram_data_ptr_cordet;
-         int * ptr_cordet = cornersPosLev0;
-         int * cornersNumber[LEVELS] = {cornersNumLev0, cornersNumLev1, cornersNumLev2, cornersNumLev3};
-         int * cornersPos[LEVELS] = {cornersPosLev0, cornersPosLev1, cornersPosLev2, cornersPosLev3};
+         unsigned char * ptr_cordet = nCorners_Lev[0];
+         unsigned char * cornersNumber[LEVELS] = {nCorners_Lev[0], nCorners_Lev[1], nCorners_Lev[2], nCorners_Lev[3]};
+         unsigned char * cornersPos[LEVELS] = {pCorners_Lev[0], pCorners_Lev[1], pCorners_Lev[2], pCorners_Lev[3]};
 
          // printf("Corner detection results memory : %p\n", ptr_cordet);
          //int *cordet_size[LEVELS] = { ptr_cordet, NULL, NULL, NULL };
@@ -140,7 +122,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
                //      0001_2c00 - 0001_76ff level 2 (160*120 = 19200 = 0000_4b00)
                //      0001_7700 - 0001_89bf level 3 (80*60 = 4800 = 0000_12c0)
                lev.im.resize(aLevels[i-1].im.size() / 2);       // image resize
-               copy(BasicImage<byte>(imgDataLevels[i], lev.im.size()), lev.im);  // copy image data to "lev.im"
+               copy(BasicImage<byte>(IMG_Lev[i], lev.im.size()), lev.im);  // copy image data to "lev.im"
                // printf("Get image data of level [%d] from memory [%p]\n", i, sdram_data_ptr_level[i]);
 
                // corner detection result array size
@@ -163,7 +145,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
             // printf("Level %d Corner detection results size : %d [%p]\n", i, *cordet_size[i], cordet_size[i]);
             // "cordet_size" means how many integers are next.
             //int *result_data = cordet_size[i] + 1;
-            int * result = cornersPos[i];            
+            unsigned char * result = cornersPos[i] + 1;            
 
             vector<ImageRef> levCorners;
             for (int el = 0; el < (*cornersNumber[i]) / 2; el+=2) 
@@ -194,6 +176,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
             v++;
           lev.vCornerRowLUT.push_back(v);
         }
+        printf("1st stage done\n");
 
         // image save temporarily { 
         if (frame_cnt == 80 || frame_cnt == 125)
@@ -388,9 +371,11 @@ struct LevelHelpersFiller // Code which should be initialised on init goes here;
 static LevelHelpersFiller foo;
 
 // minho {
-void initMem() 
+void mmap_init() 
 {
-   printf("Init the variabels for mmap()...\n");
+   printf("mmap_init()+++\n");
+   
+   printf("init the variabels for mmap()...\n");
    int fd;   // "/dev/mem" file description
    off_t hps_base_offset, axi_h2f_offset;   // page offset
 
@@ -398,7 +383,7 @@ void initMem()
    // In other words, the offset is a multiple of the page size.
    hps_base_offset = SDRAM_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1);
    axi_h2f_offset = AXI_LW_MEM_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1);
-   printf("hps_base_offset : 0x%p, axi_h2f_offset : 0x%p\n", hps_base_offset, axi_h2f_offset);
+   printf("hps_base_offset : %p, axi_h2f_offset : %p\n", hps_base_offset, axi_h2f_offset);
 
    // 1. Open "/dev/mem"
    if ((fd = open("/dev/mem", (O_RDWR | O_SYNC))) == -1)
@@ -424,24 +409,28 @@ void initMem()
       printf("hps_virtual_base : %p, lw_axi_h2f_base: %p\n", hps_virtual_base, lw_axi_h2f_base);	
    }
 
-   imgData = (unsigned char *)(hps_virtual_base);
-   imgDataLev0 = imgData;
-   imgDataLev1 = imgData + MEMORY_SIZE_LEVEL0;
-   imgDataLev2 = imgData + MEMORY_SIZE_LEVEL1;
-   imgDataLev3 = imgData + MEMORY_SIZE_LEVEL2;
-   imgDataLev4 = imgData + MEMORY_SIZE_LEVEL3;
+   IMG_Lev[0] = (unsigned char *)(hps_virtual_base);
+   IMG_Lev[1] = IMG_Lev[0] + MEM_SIZE_LEV0;
+   IMG_Lev[2] = IMG_Lev[1] + MEM_SIZE_LEV1;
+   IMG_Lev[3] = IMG_Lev[2] + MEM_SIZE_LEV2;
+   IMG_Lev[4] = IMG_Lev[3] + MEM_SIZE_LEV3;
 
-   cornersPosLev0 = (int *)(imgDataLev4 + MEMORY_SIZE_LEVEL4);  
-   cornersPosLev1 = cornersPosLev0 + *(cornersNumLev0);
-   cornersPosLev2 = cornersPosLev1 + *(cornersNumLev1);
-   cornersPosLev3 = cornersPosLev2 + *(cornersNumLev2); 
+   for (int i=0; i<LEVELS+1; i++) {
+   	printf("Lev[%d] addr: %p\n", i, IMG_Lev[i]);  
+   }   
+   printf("Mapped for pyramid images\n");
+
+   pCorners_Lev[0] = IMG_Lev[4] + MEM_SIZE_LEV4;  
+   printf("Mapped for Corners'Pos region\n");
 
    /* LW_AXI_H2F register */
-   atomicStatus = (int *)(lw_axi_h2f_base + STATUS_REG_0_OFFSET);
-   cornersNumLev0 = (int *)(lw_axi_h2f_base + N_CORNERS_LEVEL0_OFFSET);
-   cornersNumLev1 = (int *)(lw_axi_h2f_base + N_CORNERS_LEVEL1_OFFSET);
-   cornersNumLev2 = (int *)(lw_axi_h2f_base + N_CORNERS_LEVEL2_OFFSET);
-   cornersNumLev3 = (int *)(lw_axi_h2f_base + N_CORNERS_LEVEL3_OFFSET);
+   statusRegister = (unsigned char*)lw_axi_h2f_base;
+   nCorners_Lev[0] = statusRegister + 1;
+   nCorners_Lev[1] = statusRegister + 2;
+   nCorners_Lev[2] = statusRegister + 3;
+   nCorners_Lev[3] = statusRegister + 4;
+
+   printf("Mapped for AXI_H2F region\n"); 
 
 /*
    sdram_data_ptr_level[0] = sdram_data_ptr;
@@ -462,6 +451,8 @@ void initMem()
 
    signal(SIGINT, on_close);         // user interrupt (Ctrl + c)
    sigaction(SIGSEGV, &sa, NULL);    // Segmentation Fault
+
+   printf("mmap_init() done\n");
 }
 
 void on_close(int signal)

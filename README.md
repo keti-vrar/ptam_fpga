@@ -1,7 +1,10 @@
 ptam_fpgasoc
 ============
+[How to connect Master] 
+1. #ssh sockit@192.168.1.111 (from Remote Host)
+2. #su 
+
 [How to Install] 
-: on Intel Stratix10 aarch64 soc board
 1. #mkdir -p your_workspace/catkin_ws/src
 2. #cd your_workspace/catkin_ws/src
 3. #git clone https://github.com/keti-vrar/ptam_fpgasoc
@@ -16,6 +19,9 @@ ptam_fpgasoc
 5. #rosrun ptam remote_ptam (from Remote Host)
 6. #rosrun usb_cam usb_cam_node (from Remote Host)
 7. #rosrun ROS_NAMESPACE=usb_cam rosrun image_proc image_proc (from Remote Host)
+
+
+
 
 [Updated on Jul/15th]
 

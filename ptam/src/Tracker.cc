@@ -102,12 +102,20 @@ void Tracker::TrackFrame(CVD::Image<CVD::byte> &imFrame, bool bDraw, const TooN:
 }
 
 
+float timediff(struct timeval t0, struct timeval t1) {
+        return (t1.tv_sec - t0.tv_sec) * 1000.0f + (t1.tv_usec - t0.tv_usec) / 1000.0f;
+}
+
+
 // TrackFrame is called by System.cc with each incoming video frame.
 // It figures out what state the tracker is in, and calls appropriate internal tracking
 // functions. bDraw tells the tracker wether it should output any GL graphics
 // or not (it should not draw, for example, when AR stuff is being shown.)
 void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
 {
+  struct timeval t0, t1;
+  float elapsed;
+
   mbDraw = bDraw;
   mMessageForUser.str("");   // Wipe the user message clean
   mMapMaker.resetMessageForUser();
@@ -118,7 +126,12 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
   mCurrentKF.reset(new KeyFrame);
 
   mCurrentKF->mMeasurements.clear();
+
+  gettimeofday(&t0, NULL);
   mCurrentKF->MakeKeyFrame_Lite(imFrame);
+  gettimeofday(&t1, NULL);
+  elapsed = timediff(t0, t1);
+  printf("MakeKeyFrame_Lite' duration: %f ms\n", elapsed);
 
   // Update the small images for the rotation estimator
   //Weiss{

@@ -52,10 +52,10 @@ struct TrackerData;
 #define MEM_SIZE_LEV4 0x4B0   // Lv.4 image 40x30 for SBI
 
 #define STATUS_REG_0_OFFSET 0x0
-#define N_CORNERS_LEV0_OFFSET 0x4
-#define N_CORNERS_LEV1_OFFSET 0x8
-#define N_CORNERS_LEV2_OFFSET 0xC
-#define N_CORNERS_LEV3_OFFSET 0x10
+#define N_CORNERS_LEV0_OFFSET 0x1 //0x4
+#define N_CORNERS_LEV1_OFFSET 0x2 //0x8
+#define N_CORNERS_LEV2_OFFSET 0x3 //0xC
+#define N_CORNERS_LEV3_OFFSET 0x4 //0x10
 
 
 const int img_size_of_level[LEVELS+1] = {

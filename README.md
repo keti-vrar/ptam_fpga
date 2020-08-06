@@ -1,5 +1,27 @@
-ptam_fpga
+ptam_fpgasoc
 ============
+[How to connect Master] 
+1. #ssh sockit@192.168.1.111 (from Remote Host)
+2. #su 
+
+[How to Install] 
+1. #mkdir -p your_workspace/catkin_ws/src
+2. #cd your_workspace/catkin_ws/src
+3. #git clone https://github.com/keti-vrar/ptam_fpgasoc
+4. #cd ..
+5. #catkin_make
+
+[How to Run]
+1. #source devel/setup.sh
+2. #roscore  (from Stratix10)
+3. #roscore  (from Host. e.g. Ubutu16 based remote machine)
+4. #roslaunch ptam ptam.launch // (from Stratix10 using another termial)
+5. #rosrun ptam remote_ptam (from Remote Host)
+6. #rosrun usb_cam usb_cam_node (from Remote Host)
+7. #rosrun ROS_NAMESPACE=usb_cam rosrun image_proc image_proc (from Remote Host)
+
+
+
 
 [Updated on Jul/15th]
 

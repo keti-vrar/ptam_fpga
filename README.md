@@ -4,7 +4,7 @@ This repository is applicable to ubuntu core 16.04 based boards.
 The confirmed H/W references are the Intel Stratix 10 and Nanopc-T4 RK3399 Lubuntu 16.04.x installed.
 
 For RK3399 Lubuntu environment need to set the following instruction to run usb_cam.
-# rosrun usb_cam usb_cam_node _video_device:=/dev/video10
+_#rosrun usb_cam usb_cam_node _video_device:=/dev/video10
 
 [How to connect Master] 
 1. #ssh sockit@192.168.1.111 (from Remote Host)

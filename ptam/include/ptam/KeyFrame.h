@@ -57,6 +57,19 @@ struct TrackerData;
 #define N_CORNERS_LEV2_OFFSET 0x3 //0xC
 #define N_CORNERS_LEV3_OFFSET 0x4 //0x10
 
+#define ONCHIP_MEMORY_BASE 0x00000000
+#define LEV0_IMG_BASE 0x00000000
+#define LEV1_IMG_BASE 0x4B000
+#define LEV2_IMG_BASE 0x5DC00
+#define LEV3_IMG_BASE 0x62700
+#define LEV4_IMG_BASE 0x639C0
+#define ADDR_CORNERS_BASE 0x63E80
+
+#define STATUS_REG_0_OFST 0x0
+#define N_CORNERS_LEV0_OFST 0x4
+#define N_CORNERS_LEV1_OFST 0x8
+#define N_CORNERS_LEV2_OFST 0xC
+#define N_CORNERS_LEV3_OFST 0x10
 
 const int img_size_of_level[LEVELS+1] = {
      MEM_SIZE_LEV0,  // Lv.0 image 640x48

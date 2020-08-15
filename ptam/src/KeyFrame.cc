@@ -45,6 +45,19 @@ void segfault_sigaction(int signal, siginfo_t *si, void *arg);
 
 void* hps_virtual_base;
 void* lw_axi_h2f_base;
+volatile unsigned char* lev0_image_base;
+volatile unsigned char* lev1_image_base;
+volatile unsigned char* lev2_image_base;
+volatile unsigned char* lev3_image_base;
+volatile unsigned char* lev4_image_base;
+volatile unsigned int* addr_corners_base;
+volatile unsigned int* status_register;
+volatile unsigned int* n_corners_lv0;
+volatile unsigned int* n_corners_lv1;
+volatile unsigned int* n_corners_lv2;
+volatile unsigned int* n_corners_lv3;
+volatile unsigned int* number_corners[4] = {};    
+volatile unsigned int* addr_corners[4] = {};
 
 unsigned int* IMG_Lev[LEVELS+1] = {};
 //CVD::Image<CVD::byte> *IMG_Lev[LEVELS+1] = {};
@@ -65,6 +78,7 @@ float timediff_msec(struct timeval t0, struct timeval t1) {
 
 void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 {
+   cout << "MakeKeyFrame_Lite+++" << endl;
    // Perpares a Keyframe from an image. Generates pyramid levels, does FAST detection, etc.
    // Does not fully populate the keyframe struct, but only does the bits needed for the tracker;
    // e.g. does not perform FAST nonmax suppression. Things like that which are needed by the
@@ -75,8 +89,8 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    double buff;
    struct timeval t0, t1, t2, t3, t4, t5, t6, t7;
    float elapsed;
+   ImageRef pos;
 
-   // minho {
    frame_cnt++;
 
    if (is_first_frame) 
@@ -84,65 +98,37 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       mmap_init();
       is_first_frame = false;
    }
-   // minho }
-/*
-   pCorners_Lev[1] = pCorners_Lev[0] + *(nCorners_Lev[0]);
-   pCorners_Lev[2] = pCorners_Lev[1] + *(nCorners_Lev[1]);
-   pCorners_Lev[3] = pCorners_Lev[2] + *(nCorners_Lev[2]);
-
-   for (int i=0; i<LEVELS; i++) {
-        printf("pCorners_Lev[%d] addr: %p\n", i, pCorners_Lev[0]);   
-   }
-   printf("mmap()ed for Corners'Pos region\n");
-*/
+   
    // First, copy out the image data to the pyramid's zero level.
    aLevels[0].im.resize(im.size());
    copy(im, aLevels[0].im);
    
    gettimeofday(&t4, NULL);   
-   // minho every frame {
-   // SET the image data (im) to halfsample the image.
-   // void * memset ( void * ptr, int value, size_t num );
-   //memset(IMG_Lev[0], 0, 0x639c0); //SDRAM_SPAN); // memory initialize
-   memcpy(IMG_Lev[0], im.begin(), im.totalsize());
-   //copy(im, IMG_Lev[0]);
-   //IMG_Lev[0] = (unsigned char *)im;
-   //copy(aLevels[0].im, BasicImage<byte>(IMG_Lev[0], aLevels[0].im.size()));
-
-   //printf("Copied lev.im into shared memory IMG_Lev[0]\n");
+   for (int y=0; y<im.size().y; y++) {
+      for (int x=0; x<im.size().x; x++) {
+         pos.x = x; pos.y = y;
+         //*(lev0_image_base + (y*im.size().x+x)) = 0;
+         *(lev0_image_base + (y*im.size().x+x)) = im[pos]; // assert unsigned char into volatile pointer
+      }
+   }
    gettimeofday(&t5, NULL);
    elapsed = timediff_msec(t4, t5);
-   printf("Copying IMG_Lev[0]'duration: %f ms\n", elapsed); 
+   printf("Copyed im to FPGA: %f ms\n", elapsed); 
 
-   *status_Register = 0x1; // processor write is over
+   *(status_register) = 0x1; // processor write is over
    
-   int status = 0;
+   unsigned int status = 0;
    while(1) // polling...
    {
-      status = *(status_Register);
-      printf("Waiting for FPGA completed... Checking Status: %d\r", status); 
+      status = *(status_register);
+      //printf("Waiting for FPGA completed... Checking Status: %d\r", status); 
+      printf(".");
 
       // If status is 0, GET the halfsampled image data and corner detection result
       if (status != 1)
       {
          //printf("status : %d, frame_cnt : %d\n", status, frame_cnt);
-         pCorners_Lev[1] = pCorners_Lev[0] + *(nCorners_Lev[0]);
-         pCorners_Lev[2] = pCorners_Lev[1] + *(nCorners_Lev[1]);
-         pCorners_Lev[3] = pCorners_Lev[2] + *(nCorners_Lev[2]);
-
-         for (int i=0; i<LEVELS; i++) {
-           printf("pCorners_Lev[%d] addr: %p\n", i, pCorners_Lev[0]);
-         }
-         printf("Dynamically Mapped for Corners'Pos region\n");
-
-         // Corner detection results data 
-         //int *ptr_cordet = sdram_data_ptr_cordet;
-         unsigned int* ptr_cordet = nCorners_Lev[0];
-         unsigned int* cornersNumber[LEVELS] = {nCorners_Lev[0], nCorners_Lev[1], nCorners_Lev[2], nCorners_Lev[3]};
-         unsigned int* cornersPos[LEVELS] = {pCorners_Lev[0], pCorners_Lev[1], pCorners_Lev[2], pCorners_Lev[3]};
-
-         // printf("Corner detection results memory : %p\n", ptr_cordet);
-         //int *cordet_size[LEVELS] = { ptr_cordet, NULL, NULL, NULL };
+         printf("\n");
 
          for (int i = 0; i < LEVELS+1; i++) // To handle SBI into Keyframe
          {
@@ -158,63 +144,43 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
                //      0001_2c00 - 0001_76ff level 2 (160*120 = 19200 = 0000_4b00)
                //      0001_7700 - 0001_89bf level 3 (80*60 = 4800 = 0000_12c0)
                lev.im.resize(aLevels[i-1].im.size() / 2);       // image resize
-               //copy(BasicImage<byte>(IMG_Lev[i], lev.im.size()), lev.im);  // copy image data to "lev.im"
-               memcpy(lev.im.begin(), IMG_Lev[i], img_size_of_level[i]);
-	       //printf("copied lev.im[%d] into IMG_Lev[%d]\n", i, i);
-               //printf("Get image data of level [%d] from memory [%p]\n", i, sdram_data_ptr_level[i]);
 
-               // corner detection result array size
-               //cornersNumber[i] = cornersNumber[i-1] + *(cornersNumber[i-1]) + 1;
+               for (int y=0; y< lev.im.size().y; y++) {
+                  for (int x=0; x< lev.im.size().x; x++) {
+                     pos.x = x; pos.y = y;
+                     lev.im[pos] = *(lev0_image_base + (y*im.size().x+x));
+                  }
+               }
             }
 
             if (i == 4) { // Don't process since lev.4 is requird only for SBI input.
-               //printf("IMG_Lev[4] copied, Break\n"); 
+               printf("small image copied\n"); 
                break;
             }
 
-            gettimeofday(&t0, NULL);
+            //gettimeofday(&t0, NULL);
 	    lev.vCorners.clear();
             lev.vCandidates.clear();
             lev.vMaxCorners.clear();
 
-            // Corner detection data from memory has ONE integer(array size) and array data.
-            // e.g. if base is 0001_89c0,
-            //      0001_89c0 - 0001_89c3 level 0 image corner detection result array size (integer = 4 bytes)
-            //      0001_89c4 - ...       corner detection result array data
-            //      This leads to level 3.
-
-            // printf("Level %d Corner detection results size : %d [%p]\n", i, *cordet_size[i], cordet_size[i]);
-            // "cordet_size" means how many integers are next.
-            //int *result_data = cordet_size[i] + 1;
-            printf("Lev[%d]' Corner Size: %d\n", i, *nCorners_Lev[i]);
-            printf("Lev[%d]' Corner Address: %p\n", i, pCorners_Lev[i]);
-
-            unsigned int* result = cornersPos[i];// + 1;            
-/*
+            volatile unsigned int* result = addr_corners[i];
             vector<ImageRef> levCorners;
-            for (int el = 0; el < (*cornersNumber[i]) / 2; el+=2) 
-            {
-               // Upper 2-bytes mean X-position, Lower 2-bytes mean Y-position.     
-               levCorners.push_back( ImageRef(*(result + el), *(result + el + 1)) );
-               printf("Lev[%d]' Corner Address[%d]: %d, %d\n", i, el, ImageRef(*(result+el), *(result+el+1)));
-            }
-*/
-            vector<ImageRef> levCorners;
-            for (int el = 0; el < (*cornersNumber[i]); el++) {
+            for (int el = 0; el < *(number_corners[i]); el++) {
                // Upper 2-bytes mean X-position, Lower 2-bytes mean Y-position.
-               int x, y;
-               x = *(result + el) >> 16;
-               y = *(result + el) & 0x0000FFFF;
-               levCorners.push_back(ImageRef(x, y)); 
-               printf("result+el: 0x%x, x: 0x%x, y: 0x%x\n", *(result + el), x, y);	       
-	    }
-            
+               ImageRef corner_pos;
+               corner_pos.x = *(result + el) >> 16;
+               corner_pos.y = *(result + el) & 0x0000FFFF;
+               levCorners.push_back(corner_pos);
+               //printf("result+el: 0x%x, x: 0x%x, y: 0x%x\n", *(result + el), corner_pos.x, corner_pos.y);
+            }
+            printf("number_corners[%d]'size: %d\n", i, *(number_corners[i]));
+ 
             // Assign results
             lev.vCorners = levCorners;
             // printf("[F %d][LEVEL %d] Corner detection results size : %d\n", frame_cnt, i, lev.vCorners.size());
-            gettimeofday(&t1, NULL);
-            elapsed = timediff_msec(t0, t1);
-            printf("Asserting Corners' duration: %f ms\n", elapsed);
+            //gettimeofday(&t1, NULL);
+            //elapsed = timediff_msec(t0, t1);
+            //printf("Asserting Corners' duration: %f ms\n", elapsed);
                         
 
             const ptam::PtamParamsConfig& pPars = PtamParameters::varparams();
@@ -228,7 +194,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
            // Generate row look-up-table for the FAST corner points: this speeds up
            // finding close-by corner points later on.
-           gettimeofday(&t2, NULL);
+           //gettimeofday(&t2, NULL);
 
            unsigned int v=0;
            lev.vCornerRowLUT.clear();
@@ -239,9 +205,9 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
               lev.vCornerRowLUT.push_back(v);
            }
            //printf("1st stage done\n");
-           gettimeofday(&t3, NULL);
-           elapsed = timediff_msec(t2, t3);
-           printf("Asserting RowLUT's duration: %f ms\n", elapsed); 
+           //gettimeofday(&t3, NULL);
+           //elapsed = timediff_msec(t2, t3);
+           //printf("Asserting RowLUT's duration: %f ms\n", elapsed); 
 #if 0
         // image save temporarily { 
         if (frame_cnt == 80 || frame_cnt == 125)
@@ -286,7 +252,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
     } // if (status != 1)
 
   } // while(1) 
-
+  cout << "MakeKeyFrame_Lite---" << endl;
   // } minho
 }
 
@@ -474,35 +440,44 @@ void mmap_init()
       printf("hps_virtual_base : %p, lw_axi_h2f_base: %p\n", hps_virtual_base, lw_axi_h2f_base);	
    }
 
-   //IMG_Lev[0] = (CVD::Image<CVD::byte> * )(hps_virtual_base);
-   IMG_Lev[0] = (unsigned int*)hps_virtual_base;
-   IMG_Lev[1] = IMG_Lev[0] + MEM_SIZE_LEV0;
-   IMG_Lev[2] = IMG_Lev[1] + MEM_SIZE_LEV1;
-   IMG_Lev[3] = IMG_Lev[2] + MEM_SIZE_LEV2;
-   IMG_Lev[4] = IMG_Lev[3] + MEM_SIZE_LEV3;
+   //lev0_image_base = (volatile CVD::Image<CVD::byte>*)(hps_virtual_base);
+   lev0_image_base = (volatile unsigned char*)(hps_virtual_base);
+   lev1_image_base = (volatile unsigned char*)(hps_virtual_base + LEV1_IMG_BASE);
+   lev2_image_base = (volatile unsigned char*)(hps_virtual_base + LEV2_IMG_BASE);
+   lev3_image_base = (volatile unsigned char*)(hps_virtual_base + LEV3_IMG_BASE);
+   lev4_image_base = (volatile unsigned char*)(hps_virtual_base + LEV4_IMG_BASE);
+   printf("lev0_image_base: %p\n", lev0_image_base);
+   printf("lev1_image_base: %p\n", lev1_image_base);
+   printf("lev2_image_base: %p\n", lev2_image_base);
+   printf("lev3_image_base: %p\n", lev3_image_base);
+   printf("lev4_image_base: %p\n", lev4_image_base);
 
-   for (int i=0; i<LEVELS+1; i++) {
-   	printf("IMG_Lev[%d] addr: %p\n", i, IMG_Lev[i]);  
-   }   
-   printf("mmap()ed for pyramid images\n");
-
+   addr_corners_base = (volatile unsigned int *) (hps_virtual_base + ADDR_CORNERS_BASE);
+   printf("addr_corners_base: %p\n", addr_corners_base);
+   
    /* LW_AXI_H2F register */
    // N corners Lv.x : 32-bit unsigned integer
-   status_Register = (unsigned int*)lw_axi_h2f_base;
-   nCorners_Lev[0] = status_Register + N_CORNERS_LEV0_OFFSET;
-   nCorners_Lev[1] = status_Register + N_CORNERS_LEV1_OFFSET;
-   nCorners_Lev[2] = status_Register + N_CORNERS_LEV2_OFFSET;
-   nCorners_Lev[3] = status_Register + N_CORNERS_LEV3_OFFSET;
+   status_register = (volatile unsigned int*)(lw_axi_h2f_base);
+   n_corners_lv0 = (volatile unsigned int*)(lw_axi_h2f_base + N_CORNERS_LEV0_OFST);
+   n_corners_lv1 = (volatile unsigned int*)(lw_axi_h2f_base + N_CORNERS_LEV1_OFST);
+   n_corners_lv2 = (volatile unsigned int*)(lw_axi_h2f_base + N_CORNERS_LEV2_OFST);
+   n_corners_lv3 = (volatile unsigned int*)(lw_axi_h2f_base + N_CORNERS_LEV3_OFST);
+   printf("status_register addr: %p\n", status_register);
+   printf("n_corners_lev0 addr: %p\n", n_corners_lv0);
+   printf("n_corners_lev1 addr: %p\n", n_corners_lv1);
+   printf("n_corners_lev2 addr: %p\n", n_corners_lv2);
+   printf("n_corners_lev3 addr: %p\n", n_corners_lv3);
 
-   printf("StatusRegister addr: %p\n", status_Register);
+   number_corners[0] = n_corners_lv0;
+   number_corners[1] = n_corners_lv1;
+   number_corners[2] = n_corners_lv2;
+   number_corners[3] = n_corners_lv3;
 
-   for (int i=0; i<LEVELS; i++) {
-        printf("nCorners_Lev[%d] addr: %p\n", i, nCorners_Lev[i]);
-   }
-   printf("mmap()ed for AXI_H2F region\n");
+   addr_corners[0] = addr_corners_base;
+   addr_corners[1] = addr_corners_base + *(n_corners_lv0) + 1;
+   addr_corners[2] = addr_corners_base + *(n_corners_lv1) + 1,
+   addr_corners[3] = addr_corners_base + *(n_corners_lv2) + 1;
 
-   pCorners_Lev[0] = IMG_Lev[4] + MEM_SIZE_LEV4;
-   printf("pCorners_Lev[0] addr: %p\n", pCorners_Lev[0]);
 /*
    pCorners_Lev[1] = pCorners_Lev[0] + *(nCorners_Lev[0]);
    pCorners_Lev[2] = pCorners_Lev[1] + *(nCorners_Lev[1]);

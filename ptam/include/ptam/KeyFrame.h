@@ -40,7 +40,7 @@ struct TrackerData;
 #define LEVELS 4
 
 #define SDRAM_BASE 0x00000000
-#define SDRAM_SPAN 0xA00000  // 10MB KByte
+#define SDRAM_SPAN 0xF00000 //0x20000000 //A00000  // 10MB KByte
 
 #define AXI_LW_MEM_BASE 0xF9000000
 #define AXI_LW_MEM_SPAN	0x200000 // 2MB
@@ -131,7 +131,7 @@ struct KeyFrame
   }
   SE3<> se3CfromW;    // The coordinate frame of this key-frame as a Camera-From-World transformation
   bool bFixed;      // Is the coordinate frame of this keyframe fixed? (only true for first KF!)
-  Level aLevels[LEVELS+1];  // Images, corners, etc lives in this array of pyramid levels
+  Level aLevels[LEVELS];  // Images, corners, etc lives in this array of pyramid levels
   std::map<boost::shared_ptr<MapPoint>, Measurement> mMeasurements;           // All the measurements associated with the keyframe
 
   //slynen pcl interface{

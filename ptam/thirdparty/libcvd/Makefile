@@ -1,5 +1,5 @@
 ifeq ("$(shell arch)", "aarch64")
-     CXXFLAGS+= -mfpu=neon
+#     CXXFLAGS+= -mfpu=neon
 endif
 CXXFLAGS+= -fsee -funsafe-loop-optimizations -ffinite-math-only -fno-signed-zeros -fno-math-errno -funroll-loops
 

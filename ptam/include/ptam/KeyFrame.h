@@ -39,38 +39,38 @@ struct TrackerData;
 //}
 #define LEVELS 4
 
-#define SDRAM_BASE 0x00000000
-#define SDRAM_SPAN 0xF00000 //0x20000000 //A00000  // 10MB KByte
+//#define SDRAM_BASE 0x00000000
+//#define SDRAM_SPAN 0xF00000 //0x20000000 //A00000  // 10MB KByte
 
-#define AXI_LW_MEM_BASE 0xF9000000
-#define AXI_LW_MEM_SPAN	0x200000 // 2MB
+//#define AXI_LW_MEM_BASE 0xF9000000
+//#define AXI_LW_MEM_SPAN	0x200000 // 2MB
 
-#define MEM_SIZE_LEV0 0x4B000 // Lv.0 image 640x480
-#define MEM_SIZE_LEV1 0x12C00 // Lv.1 image 320x240
-#define MEM_SIZE_LEV2 0x4B00  // Lv.2 image 160x120
-#define MEM_SIZE_LEV3 0x12C0  // Lv.3 image 80x60
-#define MEM_SIZE_LEV4 0x4B0   // Lv.4 image 40x30 for SBI
+//#define MEM_SIZE_LEV0 0x4B000 // Lv.0 image 640x480
+//#define MEM_SIZE_LEV1 0x12C00 // Lv.1 image 320x240
+//#define MEM_SIZE_LEV2 0x4B00  // Lv.2 image 160x120
+//#define MEM_SIZE_LEV3 0x12C0  // Lv.3 image 80x60
+//#define MEM_SIZE_LEV4 0x4B0   // Lv.4 image 40x30 for SBI
 
-#define STATUS_REG_0_OFFSET 0x0
-#define N_CORNERS_LEV0_OFFSET 0x1 //0x4
-#define N_CORNERS_LEV1_OFFSET 0x2 //0x8
-#define N_CORNERS_LEV2_OFFSET 0x3 //0xC
-#define N_CORNERS_LEV3_OFFSET 0x4 //0x10
+//#define STATUS_REG_0_OFFSET 0x0
+//#define N_CORNERS_LEV0_OFFSET 0x1 //0x4
+//#define N_CORNERS_LEV1_OFFSET 0x2 //0x8
+//#define N_CORNERS_LEV2_OFFSET 0x3 //0xC
+//#define N_CORNERS_LEV3_OFFSET 0x4 //0x10
 
-#define ONCHIP_MEMORY_BASE 0x00000000
-#define LEV0_IMG_BASE 0x00000000
-#define LEV1_IMG_BASE 0x4B000
-#define LEV2_IMG_BASE 0x5DC00
-#define LEV3_IMG_BASE 0x62700
-#define LEV4_IMG_BASE 0x639C0
-#define ADDR_CORNERS_BASE 0x63E80
+//#define ONCHIP_MEMORY_BASE 0x00000000
+//#define LEV0_IMG_BASE 0x00000000
+//#define LEV1_IMG_BASE 0x4B000
+//#define LEV2_IMG_BASE 0x5DC00
+//#define LEV3_IMG_BASE 0x62700
+//#define LEV4_IMG_BASE 0x639C0
+//#define ADDR_CORNERS_BASE 0x63E80
 
-#define STATUS_REG_0_OFST 0x0
-#define N_CORNERS_LEV0_OFST 0x4
-#define N_CORNERS_LEV1_OFST 0x8
-#define N_CORNERS_LEV2_OFST 0xC
-#define N_CORNERS_LEV3_OFST 0x10
-
+//#define STATUS_REG_0_OFST 0x0
+//#define N_CORNERS_LEV0_OFST 0x4
+//#define N_CORNERS_LEV1_OFST 0x8
+//#define N_CORNERS_LEV2_OFST 0xC
+//#define N_CORNERS_LEV3_OFST 0x10
+/*
 const int img_size_of_level[LEVELS+1] = {
      MEM_SIZE_LEV0,  // Lv.0 image 640x48
      MEM_SIZE_LEV1,  // Lv.1 image 320x240
@@ -78,7 +78,7 @@ const int img_size_of_level[LEVELS+1] = {
      MEM_SIZE_LEV3,  // Lv.3 image 80x60
      MEM_SIZE_LEV4   // Lv.4 image 40x30, SBI
 };
-
+*/
 
 // Candidate: a feature in an image which could be made into a map point
 struct Candidate

@@ -10,9 +10,14 @@
 #include "ptam/TrackerData.h"
 //}
 
+// To include mmap related
+#include <sys/mman.h>
+
 using namespace CVD;
 using namespace std;
 
+extern void* lev_img_map;
+extern void* reg_map;
 extern unsigned char* lev0_img_ptr;
 extern unsigned char* lev1_img_ptr;
 extern unsigned char* lev2_img_ptr;
@@ -23,7 +28,9 @@ extern unsigned int* lev0_corners_num_ptr;
 extern unsigned int* lev1_corners_num_ptr;
 extern unsigned int* lev2_corners_num_ptr;
 extern unsigned int* lev3_corners_num_ptr;
+extern int length_lev;
 
+//#define lev0_length 307200
 
 float timediff_msec(struct timeval t0, struct timeval t1) {
 	return (t1.tv_sec - t0.tv_sec) * 1000.0f + (t1.tv_usec - t0.tv_usec) / 1000.0f; 
@@ -75,8 +82,16 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
 #if 1
    //memset(lev0_img_ptr, 0, 307200);
+   printf("Copy &im to lev0_img_ptr\n");
    memcpy(lev0_img_ptr, im.begin(), im.totalsize());
-   printf("copied im to lev0_img_ptr\n");
+   int val = msync(lev_img_map, length_lev, MS_SYNC); 
+   if (val == -1) {
+      printf("Error on msync! %s\n", strerror(errno));
+      cout << "length_lev: " << length_lev << endl;
+   } else {
+      printf("Sync on mapped memory to file succeeded: %d\n", val);
+   }
+
    //lev0_image_base = &im;
 #else   
    for (int y = 0; y < im.size().y; y++) {
@@ -116,16 +131,16 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       
       if (i != 0) {
          lev.im.resize(aLevels[i-1].im.size() / 2);       // image resize
-#if 0
+#if 1
          for (int y=0; y< lev.im.size().y; y++) {
             for (int x=0; x< lev.im.size().x; x++) {
                pos.x = x; pos.y = y;
                if ( i == 1) {
-                  lev.im[pos] = *(lev1_img_map + (y*lev.im.size().x+x));
+                  lev.im[pos] = *(lev1_img_ptr + (y*lev.im.size().x+x));
                } else if ( i == 2) {
-                  lev.im[pos] = *(lev2_img_map + (y*lev.im.size().x+x));
+                  lev.im[pos] = *(lev2_img_ptr + (y*lev.im.size().x+x));
                } else if ( i == 3) {
-                  lev.im[pos] = *(lev3_img_map + (y*lev.im.size().x+x));
+                  lev.im[pos] = *(lev3_img_ptr + (y*lev.im.size().x+x));
                } 
 //               else if ( i == 4) {
 //                lev.im[pos] = *(lev4_image_base + (y*lev.im.size().x+x));
@@ -366,6 +381,8 @@ void KeyFrame::MakeKeyFrame_Rest()
   {
     startlvl=1;	// ignore level zero points for the map
   }
+  cout << "startlvl: " << startlvl << endl;
+
   for(int l=startlvl; l<LEVELS; l++)
   {
     Level &lev = aLevels[l];

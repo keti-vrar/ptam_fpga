@@ -27,7 +27,7 @@ parent_frame: world
 TrackingQualityFoundPixels: 50
 UseKFPixelDist: True
 NoLevelZeroMapPoints: True
-FASTMethod: FAST9-nonmax
+FASTMethod: FAST10
 MaxStereoInitLoops: 4
 AutoInitPixel: 20
 

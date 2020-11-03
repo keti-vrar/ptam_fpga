@@ -18,17 +18,35 @@ using namespace std;
 
 extern void* lev_img_map;
 extern void* reg_map;
+
+#if 1
 extern unsigned char* lev0_img_ptr;
 extern unsigned char* lev1_img_ptr;
 extern unsigned char* lev2_img_ptr;
 extern unsigned char* lev3_img_ptr;
+
 extern unsigned int* corners_pos_ptr;
 extern unsigned int* status_reg_ptr;
 extern unsigned int* lev0_corners_num_ptr;
 extern unsigned int* lev1_corners_num_ptr;
 extern unsigned int* lev2_corners_num_ptr;
 extern unsigned int* lev3_corners_num_ptr;
+#else 
+extern BasicImage<byte>* lev0_img_ptr;
+extern BasicImage<byte>* lev1_img_ptr;
+extern BasicImage<byte>* lev2_img_ptr;
+extern BasicImage<byte>* lev3_img_ptr;
+
+extern unsigned int* corners_pos_ptr;
+extern unsigned int* status_reg_ptr;
+extern unsigned int* lev0_corners_num_ptr;
+extern unsigned int* lev1_corners_num_ptr;
+extern unsigned int* lev2_corners_num_ptr;
+extern unsigned int* lev3_corners_num_ptr;
+#endif
+
 extern int length_lev;
+extern int length_reg;
 
 //#define lev0_length 307200
 
@@ -38,7 +56,7 @@ float timediff_msec(struct timeval t0, struct timeval t1) {
 
 void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 {
-   cout << "MakeKeyFrame_Lite+++" << endl;
+   //cout << "MakeKeyFrame_Lite+++" << endl;
    // Perpares a Keyframe from an image. Generates pyramid levels, does FAST detection, etc.
    // Does not fully populate the keyframe struct, but only does the bits needed for the tracker;
    // e.g. does not perform FAST nonmax suppression. Things like that which are needed by the
@@ -74,56 +92,76 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 */
 
    // First, copy out the image data to the pyramid's zero level.
-   cout << "im.resize()" << endl;
+   //cout << "im.resize()" << endl;
    aLevels[0].im.resize(im.size());
 
-   cout << "copy im to aLevels[0].im" << endl;
+   //cout << "copy im to aLevels[0].im" << endl;
    copy(im, aLevels[0].im);
 
 #if 1
-   //memset(lev0_img_ptr, 0, 307200);
    printf("Copy &im to lev0_img_ptr\n");
+
+   //
+   // Copy BasicImage &im to SDRAM's lev0_img_ptr
+   // void * memcpy ( void * destination, const void * source, size_t num );   
    memcpy(lev0_img_ptr, im.begin(), im.totalsize());
-   int val = msync(lev_img_map, length_lev, MS_SYNC); 
+
+#else   
+   for (int y = 0; y < im.size().y; y++) {
+      for (int x = 0; x < im.size().x; x++) {
+         //pos.x = x; pos.y = y;
+         //*(lev0_img_ptr + (y*im.size().x+x)) = im[pos]; // assert unsigned char into volatile pointer
+         //*(lev0_img_ptr + (y * im.size().x + x)) = im[y][x]; 
+         //*(lev0_img_ptr + (y * im.size().x + x)) = im[y][x];
+         lev0_img_ptr.at<BasicImage<byte>>(y, x) = im[y][x]; 
+      }
+   }
+   cout << "copy im to mmap()'ed region" << endl;
+#endif
+
+   //
+   // Synchronize the File System and mmap()'ed lev_img_map regoion
+   //
+   int val = msync(lev_img_map, length_lev, MS_ASYNC); 
    if (val == -1) {
       printf("Error on msync! %s\n", strerror(errno));
       cout << "length_lev: " << length_lev << endl;
    } else {
       printf("Sync on mapped memory to file succeeded: %d\n", val);
    }
-
-   //lev0_image_base = &im;
-#else   
-   for (int y = 0; y < im.size().y; y++) {
-      for (int x = 0; x < im.size().x; x++) {
-         //pos.x = x; pos.y = y;
-         //*(lev0_img_ptr + (y*im.size().x+x)) = im[pos]; // assert unsigned char into volatile pointer
-         *(lev0_img_ptr + (y * im.size().x + x)) = im[y][x]; 
-      }
-   }
-   cout << "copy im to mmap()'ed region" << endl;
-#endif
-
-   cout << "Set bit" << endl;
-   *(status_reg_ptr) = 0x1; // processor write is over
+    
+   // Set the Status Register to give ownership of SDRAM to FPGA
+   //cout << "SET Statue_Reg' start bit" << endl;
+   *(status_reg_ptr) = 0x1; 
 
    while (true) {
+
       if (*(status_reg_ptr) == 0x3) {
   	cout << "status: ok" << endl; 
 	break;
       }
       printf("waiting: %d\r", *(status_reg_ptr));
-      usleep(5000);
+      //usleep(7000);
    }
    
    //usleep(5000);
    
-   cout << "Clear bit" << endl;
-   *(status_reg_ptr) = 0x0; // Clear status_register
+   //
+   // Clear the Status Register to get ownership of SDRAM 
+   //cout << "CLEAR Status_Reg'start bit" << endl;
+   *(status_reg_ptr) = 0x0; 
    
-   //usleep(5000);
+   //
+   // Again Synchronize the File System and mmap()'ed lev_img_map regoion before copy back.
+   //
+   val = msync(lev_img_map, length_lev, MS_ASYNC);
+   if (val == -1) {
+      printf("Error on msync! %s\n", strerror(errno));
+      cout << "length_lev: " << length_lev << endl;
+   } else {
+      printf("lev_img_map synced succeeded: %d\n", val);
+   }
 
-   //cout << "copy the processed data back" << endl;
 
    for (int i = 0; i < LEVELS; i++) // To handle SBI into Keyframe
    {
@@ -131,7 +169,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       
       if (i != 0) {
          lev.im.resize(aLevels[i-1].im.size() / 2);       // image resize
-#if 1
+#if 0
          for (int y=0; y< lev.im.size().y; y++) {
             for (int x=0; x< lev.im.size().x; x++) {
                pos.x = x; pos.y = y;
@@ -147,14 +185,29 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 //             }
             }
          }
+      val = msync(lev_img_map, length_lev, MS_ASYNC);
+      if (val == -1) {
+         printf("Error on msync! %s\n", strerror(errno));
+         cout << "length_lev: " << length_lev << endl;
+      } else {
+         printf("lev_img_map synced succeeded: %d\n", val);
+      }
+
 #else
 	//copy(BasicImage<byte>(levels_image[i], lev.im.size()), lev.im);
+        // TODO
+        // Append unsigned char* to BasicImage object
+        //CVD::BasicImage<CVD::byte> img_sdram((CVD::byte *)lev0_img_ptr, CVD::ImageRef(lev.im.width, lev.im.height));
+
         if (i == 1) { 
-           copy(BasicImage<byte>(lev1_img_ptr, lev.im.size()), lev.im);
+           CVD::copy(CVD::BasicImage<CVD::byte>(lev1_img_ptr, lev.im.size()), lev.im);
+           //lev.im.copy_from(lev1_img_ptr);
         } else if (i == 2) {
-           copy(BasicImage<byte>(lev2_img_ptr, lev.im.size()), lev.im);
+           CVD::copy(CVD::BasicImage<CVD::byte>(lev2_img_ptr, lev.im.size()), lev.im);
+           //lev.im.copy_from(lev2_img_ptr);
         } else if (i == 3) {
-           copy(BasicImage<byte>(lev3_img_ptr, lev.im.size()), lev.im);
+           CVD::copy(CVD::BasicImage<CVD::byte>(lev3_img_ptr, lev.im.size()), lev.im);
+           //lev.im.copy_from(lev3_img_ptr);
         }
 #endif
       }
@@ -167,6 +220,18 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       lev.vCorners.clear();
       lev.vCandidates.clear();
       lev.vMaxCorners.clear();
+
+      //
+      // Synchronize the File System and mmap()'ed reg_map regoion
+      //
+      val = msync(reg_map, length_reg, MS_ASYNC);
+      if (val == -1) {
+         printf("Error on msync! %s\n", strerror(errno));
+         cout << "length_lev: " << length_lev << endl;
+      } else {
+         printf("reg_map synced succeeded: %d\n", val);
+      }
+
 
       unsigned int * result = 0; // = addr_corners[i];
       unsigned int num = 0; // = *(number_corners[i]); 
@@ -239,20 +304,9 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 #endif
 
    } //end of for-loop
-/*
-  free(img0_ptr); 
-   free(img1_ptr);
-   free(img2_ptr);
-   free(img3_ptr);
-   free(status_reg_ptr);
-   free(lev0_corners_num_ptr);
-   free(lev1_corners_num_ptr);
-   free(lev2_corners_num_ptr);
-   free(lev3_corners_num_ptr);
-   free(corners_pos_ptr);
-*/
-   cout << "MakeKeyFrame_Lite---" << endl;
-}
+
+   //cout << "MakeKeyFrame_Lite---" << endl;
+}  // End of MakeKeyFrame_Lite
 
 
 #if 0 
@@ -389,13 +443,15 @@ void KeyFrame::MakeKeyFrame_Rest()
     // .. find those FAST corners which are maximal..
     
     // minho - Why occured error.. {
+/*
     try {
       fast_nonmax(lev.im, lev.vCorners, 10, lev.vMaxCorners);
     } catch (exception& e) {
       cerr << "Exception caught : " << e.what() << endl;
     }
     // }
-
+*/
+    lev.vMaxCorners = lev.vCorners;
     // .. and then calculate the Shi-Tomasi scores of those, and keep the ones with
     // a suitably high score as Candidates, i.e. points which the mapmaker will attempt
     // to make new map points out of.

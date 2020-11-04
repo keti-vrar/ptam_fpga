@@ -13,6 +13,10 @@
 // To include mmap related
 #include <sys/mman.h>
 
+// To save CVD image into file
+#include <cvd/image_io.h>
+#include <sstream>
+
 using namespace CVD;
 using namespace std;
 
@@ -48,6 +52,9 @@ extern unsigned int* lev3_corners_num_ptr;
 extern int length_lev;
 extern int length_reg;
 
+int framenum = 0;
+static std::stringstream initstr;
+
 //#define lev0_length 307200
 
 float timediff_msec(struct timeval t0, struct timeval t1) {
@@ -68,6 +75,12 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    //struct timeval t0, t1, t2, t3, t4, t5, t6, t7;
    //float elapsed;
    ImageRef pos;
+
+   std::string prefix = "/home/sockit/png/FrameNum[";
+   std::string midfix = "]_lev[";
+   std::string postfix = "]im.png";
+   std::string result;
+
 /*
    unsigned char* img1_ptr = new unsigned char[320*240];
    unsigned char* img2_ptr = new unsigned char[160*120];
@@ -165,8 +178,9 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
    for (int i = 0; i < LEVELS; i++) // To handle SBI into Keyframe
    {
-      Level &lev = aLevels[i];
-      
+      std::stringstream sstm;
+
+      Level &lev = aLevels[i];      
       if (i != 0) {
          lev.im.resize(aLevels[i-1].im.size() / 2);       // image resize
 #if 0
@@ -302,9 +316,14 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
          lev.vCornerRowLUT.push_back(v);
       }
 #endif
+      
+      sstm << prefix << framenum << midfix << i << postfix;
+      result = sstm.str();
+      cout << result << endl;
+      img_save(lev.im, result);
 
-   } //end of for-loop
-
+   }; //end of for-loop
+   framenum++;
    //cout << "MakeKeyFrame_Lite---" << endl;
 }  // End of MakeKeyFrame_Lite
 

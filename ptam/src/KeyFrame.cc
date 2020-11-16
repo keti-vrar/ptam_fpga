@@ -109,7 +109,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    // Copy BasicImage &im to SDRAM's lev0_img_ptr
    // void * memcpy ( void * destination, const void * source, size_t num );   
    memcpy(lev0_img_ptr, im.begin(), im.totalsize());
-   printf("Copyed im to lev0_img_ptr\n");
+   //printf("Copied im to lev0_img_ptr\n");
 
    //std::copy(im.begin(), im.totalsize(), lev0_img_ptr);
 #else   
@@ -139,7 +139,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 #endif
     
    // Set the Status Register to give ownership of SDRAM to FPGA
-   cout << "SET Status_Reg" << endl;
+   //cout << "SET Status_REG" << endl;
    *(status_reg_ptr) = 0x1; 
 
 #if 0
@@ -155,17 +155,18 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    
    //usleep(5000);
 #else 
-   //unsigned int status = 1;
+   unsigned int status = 1;
    while (true) {
-      //status = *(status_reg_ptr);
-      if (*(status_reg_ptr) == 0x3) break;
+      status = *(status_reg_ptr);
+      if (status == 0x3) break;
+      //printf("Reg: %d\r", status); 
    }
 
 #endif   
    //
    // Clear the Status Register to get ownership of SDRAM 
-   cout << "CLEAR Status_Reg" << endl;
-   //status = 0;
+   //cout << "CLEAR Status_REG" << endl;
+   status = 0;
    *(status_reg_ptr) = 0x0; 
 
 #if 0   

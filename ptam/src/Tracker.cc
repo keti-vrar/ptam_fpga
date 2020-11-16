@@ -127,11 +127,11 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
 
   mCurrentKF->mMeasurements.clear();
 
-  gettimeofday(&t0, NULL);
+  //gettimeofday(&t0, NULL);
   mCurrentKF->MakeKeyFrame_Lite(imFrame);
-  gettimeofday(&t1, NULL);
-  elapsed = timediff(t0, t1);
-  printf("MakeKeyFrame_Lite' duration: %f ms\n", elapsed);
+  //gettimeofday(&t1, NULL);
+  //elapsed = timediff(t0, t1);
+  //printf("MakeKeyFrame_Lite' duration: %f ms\n", elapsed);
 
   // Update the small images for the rotation estimator
   //Weiss{

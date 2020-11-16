@@ -173,13 +173,6 @@ int mmap_init()
    usleep(1000);
    *(status_reg_ptr) = 0x00000000;
 
-   // Clear SDRAM region
-   // void * memset ( void * ptr, int value, size_t num );
-   //memset(lev0_img_ptr, 0, LEV0_IMG_SPAN); //640*480
-   //memset(lev1_img_ptr, 0, LEV1_IMG_SPAN);
-   //memset(lev2_img_ptr, 0, LEV2_IMG_SPAN);
-   //memset(lev3_img_ptr, 0, LEV3_IMG_SPAN);
-
    // Signal Handling
    memset(&sa, 0, sizeof(struct sigaction));
    sigemptyset(&sa.sa_mask);
@@ -187,12 +180,12 @@ int mmap_init()
    sa.sa_flags   = SA_RESTART | SA_SIGINFO;
    signal(SIGINT, on_close);         // user interrupt (Ctrl + c)
    sigaction(SIGSEGV, &sa, NULL);    // segmentation fault
-
+/*
    if (sigaction(SIGSEGV, &sa, (struct sigaction *) NULL) != 0) {
       fprintf(stderr, "error setting signal handler for %d (%s)\n", SIGSEGV, strsignal(SIGSEGV));
       exit(EXIT_FAILURE);
    }
-
+*/
    printf("mmap_init---\n");
    
    return 0;

@@ -168,6 +168,11 @@ int mmap_init()
    printf("n_corners_lv2_ptr: %p\n", lev2_corners_num_ptr);
    printf("n_corners_lv3_ptr: %p\n", lev3_corners_num_ptr);
 
+   // sleep after FPGA reset
+   *(status_reg_ptr) = 0x80000000;
+   usleep(1000);
+   *(status_reg_ptr) = 0x00000000;
+
    // Clear SDRAM region
    // void * memset ( void * ptr, int value, size_t num );
    //memset(lev0_img_ptr, 0, LEV0_IMG_SPAN); //640*480

@@ -10,8 +10,8 @@
 #include "ptam/TrackerData.h"
 //}
 
-// To include mmap related
 #include <sys/mman.h>
+#include <time.h>
 
 // To save CVD image into file
 #include <cvd/image_io.h>
@@ -52,14 +52,16 @@ extern unsigned int* lev3_corners_num_ptr;
 extern int length_lev;
 extern int length_reg;
 
-int framenum = 0;
 static std::stringstream initstr;
+static int framecnt = 0;
+static unsigned int raw_corners[10000] = {0,};
 
 //#define lev0_length 307200
-
+/*
 float timediff_msec(struct timeval t0, struct timeval t1) {
 	return (t1.tv_sec - t0.tv_sec) * 1000.0f + (t1.tv_usec - t0.tv_usec) / 1000.0f; 
 }
+*/
 
 void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 {
@@ -75,11 +77,18 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    //struct timeval t0, t1, t2, t3, t4, t5, t6, t7;
    //float elapsed;
    ImageRef pos;
+   clock_t t;
 
+   framecnt++;
+   t = clock();
+   printf("%f, %d\n", ((float)t)/CLOCKS_PER_SEC, framecnt);
+
+/*
    std::string prefix = "/home/sockit/png/FrameNum[";
    std::string midfix = "]_lev[";
    std::string postfix = "]im.png";
    std::string result;
+*/
 
 /*
    unsigned char* img1_ptr = new unsigned char[320*240];
@@ -112,7 +121,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    copy(im, aLevels[0].im);
 
 #if 1
-   printf("Copy &im to lev0_img_ptr\n");
+   //printf("Copy &im to lev0_img_ptr\n");
 
    //
    // Copy BasicImage &im to SDRAM's lev0_img_ptr
@@ -132,6 +141,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    cout << "copy im to mmap()'ed region" << endl;
 #endif
 
+#if 0
    //
    // Synchronize the File System and mmap()'ed lev_img_map regoion
    //
@@ -142,11 +152,13 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    } else {
       printf("Sync on mapped memory to file succeeded: %d\n", val);
    }
+#endif
     
    // Set the Status Register to give ownership of SDRAM to FPGA
    //cout << "SET Statue_Reg' start bit" << endl;
    *(status_reg_ptr) = 0x1; 
 
+#if 0
    while (true) {
 
       if (*(status_reg_ptr) == 0x3) {
@@ -158,12 +170,20 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    }
    
    //usleep(5000);
-   
+#else 
+   int status = 1;
+   while (status == 1) {
+      status = *(status_reg_ptr);
+   }
+
+#endif   
    //
    // Clear the Status Register to get ownership of SDRAM 
    //cout << "CLEAR Status_Reg'start bit" << endl;
+   //status = 0;
    *(status_reg_ptr) = 0x0; 
-   
+
+#if 0   
    //
    // Again Synchronize the File System and mmap()'ed lev_img_map regoion before copy back.
    //
@@ -174,12 +194,11 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    } else {
       printf("lev_img_map synced succeeded: %d\n", val);
    }
-
+#endif
 
    for (int i = 0; i < LEVELS; i++) // To handle SBI into Keyframe
    {
-      std::stringstream sstm;
-
+      //std::stringstream sstm;
       Level &lev = aLevels[i];      
       if (i != 0) {
          lev.im.resize(aLevels[i-1].im.size() / 2);       // image resize
@@ -235,6 +254,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       lev.vCandidates.clear();
       lev.vMaxCorners.clear();
 
+#if 0
       //
       // Synchronize the File System and mmap()'ed reg_map regoion
       //
@@ -245,11 +265,10 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       } else {
          printf("reg_map synced succeeded: %d\n", val);
       }
-
-
+#endif
       unsigned int * result = 0; // = addr_corners[i];
       unsigned int num = 0; // = *(number_corners[i]); 
-      
+   
       if (i == 0) {
          result = corners_pos_ptr;
          num = *(lev0_corners_num_ptr);
@@ -265,7 +284,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       } else {
          // do something  
       }
-
+#if 0
       //vector<ImageRef> levCorners;
       //levCorners.resize(num); // testing for heap corruption
       ImageRef corner_pos;
@@ -277,11 +296,22 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
          lev.vCorners.push_back(corner_pos);
          //printf("result+el: 0x%x, x: 0x%x, y: 0x%x\n", *(result + el), corner_pos.x, corner_pos.y);
       }
+#else 
+      ImageRef corner_pos;
+      std::copy(result, result+num, raw_corners);
+      unsigned int tmp = 0;
+      for (unsigned int i=0; i<num; i++) {
+         tmp = raw_corners[i];
+         corner_pos.y = tmp >> 16;
+         corner_pos.x = tmp & 0x0000FFFF;
+         lev.vCorners.push_back(corner_pos);
+      }
+#endif
       //printf("number_corners[%d]'size: %d\n", i, *(number_corners[i]));
 
       // Assign results
       //lev.vCorners = levCorners;
-      cout << "lev[" << i << "] " << lev.vCorners.size() << endl;
+      //cout << "lev[" << i << "] " << lev.vCorners.size() << endl;
 
       //cout << lev.vCorners.at(0) << lev.vCorners.at(1) << lev.vCorners.at(2) << lev.vCorners.at(3) << endl;
 
@@ -316,14 +346,14 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
          lev.vCornerRowLUT.push_back(v);
       }
 #endif
-      
+/*      
       sstm << prefix << framenum << midfix << i << postfix;
       result = sstm.str();
       cout << result << endl;
       img_save(lev.im, result);
-
+*/
    }; //end of for-loop
-   framenum++;
+   //framenum++;
    //cout << "MakeKeyFrame_Lite---" << endl;
 }  // End of MakeKeyFrame_Lite
 
@@ -454,7 +484,7 @@ void KeyFrame::MakeKeyFrame_Rest()
   {
     startlvl=1;	// ignore level zero points for the map
   }
-  cout << "startlvl: " << startlvl << endl;
+  //cout << "startlvl: " << startlvl << endl;
 
   for(int l=startlvl; l<LEVELS; l++)
   {

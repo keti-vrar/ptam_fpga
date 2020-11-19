@@ -103,7 +103,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
    //cout << "copy im to aLevels[0].im" << endl;
    copy(im, aLevels[0].im);
-
+   //cout << "im.totalsize: " << im.totalsize() << endl;
 #if 1
    //
    // Copy BasicImage &im to SDRAM's lev0_img_ptr
@@ -140,6 +140,16 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
     
    // Set the Status Register to give ownership of SDRAM to FPGA
    //cout << "SET Status_REG" << endl;
+
+   // FPGA reset everytime due to Design defect
+   //*(status_reg_ptr) = 0x80000000;
+   //usleep(1000);
+   //*(status_reg_ptr) = 0x00000000;
+   *(status_reg_ptr) = 0x80000000;
+   usleep(1000);
+   *(status_reg_ptr) = 0x00000000;
+   usleep(1000);
+
    *(status_reg_ptr) = 0x1; 
 
 #if 0
@@ -159,7 +169,8 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    while (true) {
       status = *(status_reg_ptr);
       if (status == 0x3) break;
-      //printf("Reg: %d\r", status); 
+      printf("Reg: %d\r", status); 
+      usleep(2000);
    }
 
 #endif   
@@ -233,9 +244,9 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       //   break;
       //}
 
-      lev.vCorners.clear();
-      lev.vCandidates.clear();
-      lev.vMaxCorners.clear();
+      //lev.vCorners.clear();
+      //lev.vCandidates.clear();
+      //lev.vMaxCorners.clear();
 #if 0
       //
       // Synchronize the File System and mmap()'ed reg_map regoion
@@ -248,8 +259,8 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
          printf("reg_map synced succeeded: %d\n", val);
       }
 #endif
-      unsigned int * result = 0; // = addr_corners[i];
-      unsigned int num = 0; // = *(number_corners[i]); 
+      unsigned int * result = NULL; 
+      unsigned int num = 0;  
    
       if (i == 0) {
          result = corners_pos_ptr;
@@ -279,15 +290,20 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
          //printf("result+el: 0x%x, x: 0x%x, y: 0x%x\n", *(result + el), corner_pos.x, corner_pos.y);
       }
 #else 
-      std::copy(result, result+num, raw_corners);
+      // Ignore lv3'corner result
+      if (i != 3) {
+         std::copy(result, result+num, raw_corners);
 
-      ImageRef corner_pos;
-      unsigned int tmp = 0;
-      for (unsigned int i=0; i<num; i++) {
-         tmp = raw_corners[i];
-         corner_pos.y = tmp >> 16;
-         corner_pos.x = tmp & 0x0000FFFF;
-         lev.vCorners.push_back(corner_pos);
+         ImageRef corner_pos;
+         unsigned int tmp = 0;
+         for (unsigned int i=0; i<num; i++) {
+            tmp = raw_corners[i];
+            corner_pos.y = tmp >> 16;
+            corner_pos.x = tmp & 0x0000FFFF;
+            lev.vCorners.push_back(corner_pos);
+         }
+      } else {
+         lev.vCorners.clear();
       }
 #endif
       //printf("number_corners[%d]'size: %d\n", i, *(number_corners[i]));
@@ -296,7 +312,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       //lev.vCorners = levCorners;
       //cout << "lev[" << i << "] " << lev.vCorners.size() << endl;
       //cout << lev.vCorners.at(0) << lev.vCorners.at(1) << lev.vCorners.at(2) << lev.vCorners.at(3) << endl;
-
+/*
       const ptam::PtamParamsConfig& pPars = PtamParameters::varparams();
       if (pPars.AdaptiveThrs) {
          buff = lev.vCorners.size()-pPars.AdaptiveThrsMult*pPars.MaxPatchesPerFrame/pow(2.0,i);
@@ -304,12 +320,14 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       }
       else
          thrs[i]=0;
+*/
+         thrs[i]=0;
 
       // Generate row look-up-table for the FAST corner points: this speeds up
       // finding close-by corner points later on.
 
       unsigned int v=0;
-      lev.vCornerRowLUT.clear();
+      //lev.vCornerRowLUT.clear();
 #if 0
       for(int y=0; y<lev.im.size().y; y++)
       {
@@ -334,6 +352,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       img_save(lev.im, result);
 */
    }; //end of for-loop
+
 }  // End of MakeKeyFrame_Lite
 
 

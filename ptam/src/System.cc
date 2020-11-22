@@ -15,6 +15,8 @@
 #include <opencv/cv.h>
 #include <cvd/vision.h>
 
+#include "ros/time.h"
+
 using namespace CVD;
 using namespace std;
 using namespace GVars3;
@@ -78,6 +80,7 @@ void System::init(const CVD::ImageRef & size)
 
 void System::Run()
 {
+#if 0
   while(ros::ok()){
     //    ros::getGlobalCallbackQueue()->callAvailable(ros::WallDuration(0.01));
     //    image_queue_.callAvailable();
@@ -85,12 +88,24 @@ void System::Run()
     ros::getGlobalCallbackQueue()->callAvailable();
     image_queue_.callAvailable(ros::WallDuration(0.01));
   }
+#else
+  ros::Rate r(30); //30 Hz
+  while (ros::ok())
+  {
+     ros::getGlobalCallbackQueue()->callAvailable();
+     image_queue_.callAvailable(ros::WallDuration(0.01));
+    
+     r.sleep();
+
+  }
+#endif
+
 }
 
 void System::imageCallback(const sensor_msgs::ImageConstPtr & img)
 {
   //	static ros::Time t = img->header.stamp;
-
+  //ros::Time::init();
 
   ROS_ASSERT(img->encoding == sensor_msgs::image_encodings::MONO8 && img->step == img->width);
 
@@ -160,7 +175,9 @@ void System::imageCallback(const sensor_msgs::ImageConstPtr & img)
     mGLWindow->swap_buffers();
     mGLWindow->HandlePendingEvents();
   }
-  //	usleep(50000);
+  //  ros::Duration(0, 5000000).sleep();
+
+    usleep(200000);
   //
   //  ros::Time t1 = img->header.stamp;
   //

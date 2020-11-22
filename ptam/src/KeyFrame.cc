@@ -12,6 +12,12 @@
 
 #include <sys/mman.h>
 #include <time.h>
+#include "ros/time.h"
+
+//#include "ptam/System.h"
+
+//#include <chrono>
+//#include <thread>
 
 // To save CVD image into file
 //#include <cvd/image_io.h>
@@ -40,8 +46,9 @@ extern int length_reg;
 
 //static std::stringstream initstr;
 int framecnt = 0;
-unsigned int raw_corners[10000] = {0,};
-
+//unsigned int raw_corners[10000] = {0,};
+static unsigned int prev_result = 0;
+static unsigned int cur_result = 0;
 //#define lev0_length 307200
 /*
 float timediff_msec(struct timeval t0, struct timeval t1) {
@@ -62,41 +69,39 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    double buff;
    ImageRef pos;
    clock_t t;
-
+   unsigned int* a = NULL;
+   
+   //ros::Time::init();
+/*
+   if (lev_img_map != NULL) {
+      lev0_img_ptr = static_cast<unsigned char*>(lev_img_map);
+      lev1_img_ptr = static_cast<unsigned char*>(lev_img_map + LEV1_OFFSET);
+      lev2_img_ptr = static_cast<unsigned char*>(lev_img_map + LEV2_OFFSET);
+      lev3_img_ptr = static_cast<unsigned char*>(lev_img_map + LEV3_OFFSET);
+      corners_pos_ptr = static_cast<unsigned int*>(lev_img_map + CORNERS_POS_BASE);
+   } else {
+      //close(fd);
+      exit(EXIT_FAILURE);
+   }
+   
+   if (reg_map != NULL) {
+      status_reg_ptr = static_cast<unsigned int*>(reg_map);
+      lev0_corners_num_ptr = static_cast<unsigned int*>(reg_map + LEV0_CORNERS_NUM_OFFSET);
+      lev1_corners_num_ptr = static_cast<unsigned int*>(reg_map + LEV1_CORNERS_NUM_OFFSET);
+      lev2_corners_num_ptr = static_cast<unsigned int*>(reg_map + LEV2_CORNERS_NUM_OFFSET);
+      lev3_corners_num_ptr = static_cast<unsigned int*>(reg_map + LEV3_CORNERS_NUM_OFFSET);
+   } else {
+      //close(fd);
+      exit(EXIT_FAILURE);
+   }
+*/ 
+   
    framecnt++;
-   t = clock();
-   printf("%f, %d\n", ((float)t)/CLOCKS_PER_SEC, framecnt);
-
-/*
-   std::string prefix = "/home/sockit/png/FrameNum[";
-   std::string midfix = "]_lev[";
-   std::string postfix = "]im.png";
-   std::string result;
-*/
-
-/*
-   unsigned char* img1_ptr = new unsigned char[320*240];
-   unsigned char* img2_ptr = new unsigned char[160*120];
-   unsigned char* img3_ptr = new unsigned char[80*60];
-   unsigned int* status_reg_ptr = new unsigned int;
-   unsigned int* lev0_corners_num_ptr = new unsigned int;
-   unsigned int* lev1_corners_num_ptr = new unsigned int;
-   unsigned int* lev2_corners_num_ptr = new unsigned int;
-   unsigned int* lev3_corners_num_ptr = new unsigned int;
-   unsigned int* corners_pos_ptr = new unsigned int[15000];
-
-   img0_ptr = (unsigned char*)lev0_img_map;
-   img1_ptr = (unsigned char*)lev1_img_map;
-   img2_ptr = (unsigned char*)lev2_img_map;
-   img3_ptr = (unsigned char*)lev3_img_map;
-   status_reg_ptr = (unsigned int*)status_reg_map;
-   lev0_corners_num_ptr = (unsigned int*)lev0_corners_num_map;
-   lev1_corners_num_ptr = (unsigned int*)lev1_corners_num_map;
-   lev2_corners_num_ptr = (unsigned int*)lev2_corners_num_map;
-   lev3_corners_num_ptr = (unsigned int*)lev3_corners_num_map;
-   corners_pos_ptr = (unsigned int*)corners_pos_map;
-*/
-
+   if (framecnt % 10 == 0) {
+      t = clock();
+      printf("%f, %d\n", ((float)t)/CLOCKS_PER_SEC, framecnt);
+   }
+   
    // First, copy out the image data to the pyramid's zero level.
    //cout << "im.resize()" << endl;
    aLevels[0].im.resize(im.size());
@@ -109,6 +114,9 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    // Copy BasicImage &im to SDRAM's lev0_img_ptr
    // void * memcpy ( void * destination, const void * source, size_t num );   
    memcpy(lev0_img_ptr, im.begin(), im.totalsize());
+
+   //ros::Duration(0, 1000000).sleep(); // delay for 1ms
+   usleep(1000);
    //printf("Copied im to lev0_img_ptr\n");
 
    //std::copy(im.begin(), im.totalsize(), lev0_img_ptr);
@@ -125,7 +133,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    cout << "copy im to mmap()'ed region" << endl;
 #endif
 
-#if 0
+#if 1
    //
    // Synchronize the File System and mmap()'ed lev_img_map regoion
    //
@@ -134,7 +142,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       printf("Error on msync! %s\n", strerror(errno));
       cout << "length_lev: " << length_lev << endl;
    } else {
-      printf("Sync on mapped memory to file succeeded: %d\n", val);
+      //printf("Sync on mapped memory to file succeeded: %d\n", val);
    }
 #endif
     
@@ -145,10 +153,13 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    //*(status_reg_ptr) = 0x80000000;
    //usleep(1000);
    //*(status_reg_ptr) = 0x00000000;
-   *(status_reg_ptr) = 0x80000000;
-   usleep(1000);
-   *(status_reg_ptr) = 0x00000000;
-   usleep(1000);
+
+   //*(status_reg_ptr) = 0x80000000;
+  
+    //ros::Duration(0, 1000000).sleep(); // Sleep for 1ms 
+   //usleep(10000);
+   //*(status_reg_ptr) = 0x00000000;
+   //usleep(10000);
 
    *(status_reg_ptr) = 0x1; 
 
@@ -165,21 +176,36 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    
    //usleep(5000);
 #else 
-   unsigned int status = 1;
-   while (true) {
-      status = *(status_reg_ptr);
-      if (status == 0x3) break;
-      printf("Reg: %d\r", status); 
-      usleep(2000);
-   }
 
+   //ros::Rate r(100); //10hz
+   unsigned int status = 1;
+   //int tmpcnt = 1000000;
+   while (ros::ok()) {
+      status = *(status_reg_ptr);
+      
+      if (status == 0x3) 
+         break;
+
+      printf("Reg: %d\r", status);
+      //ros::Duration(0, 2000000).sleep();
+      //r.sleep();
+      usleep(2000);
+      //printf("Reg: %d\r", status); 
+      //std::this_thread::sleep_for(std::chrono::nanoseconds(1000000));
+   }
+   //cout << endl;
 #endif   
    //
    // Clear the Status Register to get ownership of SDRAM 
    //cout << "CLEAR Status_REG" << endl;
-   status = 0;
+   //usleep(1000);
+   
+   //status = 0;
    *(status_reg_ptr) = 0x0; 
 
+   //ros::Duration(0, 1000000).sleep(); // delay for 1ms
+
+   usleep(100000);
 #if 0   
    //
    // Again Synchronize the File System and mmap()'ed lev_img_map regoion before copy back.
@@ -189,9 +215,41 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       printf("Error on msync! %s\n", strerror(errno));
       cout << "length_lev: " << length_lev << endl;
    } else {
-      printf("lev_img_map synced succeeded: %d\n", val);
+      //printf("lev_img_map synced succeeded: %d\n", val);
    }
 #endif
+
+   // Check lev0 updated
+   //while (true) {
+   
+   /*
+   memcpy(cur_result, corners_pos_ptr, sizeof(unsigned int) * 10);
+   
+      for (int i = 0; i < 6; i++) {
+         if (cur_result[i] != prev_result[i]) {
+            // looping copy again till matched
+         } else {
+            break;
+         } 
+
+      }
+   */   
+   //}
+   
+   // cur to prev
+   //memcpy(prev_result, cur_result, sizeof(unsigned int) * 6);
+   //&prev_result = &cur_result;
+ 
+   cur_result = *(corners_pos_ptr);
+   if (cur_result == prev_result) {
+      // read again
+      cout << "o";
+   } else {
+      // goto next step!
+      cout << "x";
+      //break;
+   }
+   prev_result = cur_result;
 
    for (int i = 0; i < LEVELS; i++) // To handle SBI into Keyframe
    {
@@ -216,15 +274,25 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 //             }
             }
          }
-      val = msync(lev_img_map, length_lev, MS_ASYNC);
-      if (val == -1) {
-         printf("Error on msync! %s\n", strerror(errno));
-         cout << "length_lev: " << length_lev << endl;
-      } else {
-         printf("lev_img_map synced succeeded: %d\n", val);
-      }
+         val = msync(lev_img_map, length_lev, MS_ASYNC);
+         if (val == -1) {
+            printf("Error on msync! %s\n", strerror(errno));
+            cout << "length_lev: " << length_lev << endl;
+         } else {
+            printf("lev_img_map synced succeeded: %d\n", val);
+         }
 
 #else
+
+        val = msync(lev_img_map, length_lev, MS_ASYNC);
+        if (val == -1) {
+           printf("Error on msync! %s\n", strerror(errno));
+           cout << "length_lev: " << length_lev << endl;
+        } else {
+           //printf("lev_img_map synced succeeded: %d\n", val);
+        }
+
+        usleep(1000);
 	//copy(BasicImage<byte>(levels_image[i], lev.im.size()), lev.im);
         // TODO
         // Append unsigned char* to BasicImage object
@@ -243,11 +311,12 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
          //printf("small image copied\n"); 
       //   break;
       //}
-
-      //lev.vCorners.clear();
-      //lev.vCandidates.clear();
-      //lev.vMaxCorners.clear();
-#if 0
+      //ros::Duration(0, 1000000).sleep(); // delay for 1ms
+     
+      lev.vCorners.clear();
+      lev.vCandidates.clear();
+      lev.vMaxCorners.clear();
+#if 1
       //
       // Synchronize the File System and mmap()'ed reg_map regoion
       //
@@ -256,7 +325,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
          printf("Error on msync! %s\n", strerror(errno));
          cout << "length_lev: " << length_lev << endl;
       } else {
-         printf("reg_map synced succeeded: %d\n", val);
+         //printf("reg_map synced succeeded: %d\n", val);
       }
 #endif
       unsigned int * result = NULL; 
@@ -290,29 +359,33 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
          //printf("result+el: 0x%x, x: 0x%x, y: 0x%x\n", *(result + el), corner_pos.x, corner_pos.y);
       }
 #else 
+      //cout << num << endl;
       // Ignore lv3'corner result
+      //unsigned int raw_corners[10000] = {0,};
+      a = new unsigned int[num];
       if (i != 3) {
-         std::copy(result, result+num, raw_corners);
+         std::copy(result, result+num, a);//raw_corners);
 
          ImageRef corner_pos;
          unsigned int tmp = 0;
          for (unsigned int i=0; i<num; i++) {
-            tmp = raw_corners[i];
-            corner_pos.y = tmp >> 16;
+            tmp = *(a + i); //raw_corners[i];
+            corner_pos.y = (tmp >> 16) & 0x3FF;
             corner_pos.x = tmp & 0x0000FFFF;
             lev.vCorners.push_back(corner_pos);
          }
-      } else {
-         lev.vCorners.clear();
+      } 
+      else {
+         //lev.vCorners.clear();
       }
 #endif
-      //printf("number_corners[%d]'size: %d\n", i, *(number_corners[i]));
+      //printf("lev[%d]'corner size: %d\n", i, num);//.*(number_corners[i]));
 
       // Assign results
       //lev.vCorners = levCorners;
       //cout << "lev[" << i << "] " << lev.vCorners.size() << endl;
       //cout << lev.vCorners.at(0) << lev.vCorners.at(1) << lev.vCorners.at(2) << lev.vCorners.at(3) << endl;
-/*
+
       const ptam::PtamParamsConfig& pPars = PtamParameters::varparams();
       if (pPars.AdaptiveThrs) {
          buff = lev.vCorners.size()-pPars.AdaptiveThrsMult*pPars.MaxPatchesPerFrame/pow(2.0,i);
@@ -320,14 +393,14 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       }
       else
          thrs[i]=0;
-*/
-         thrs[i]=0;
+
+         //thrs[i]=0;
 
       // Generate row look-up-table for the FAST corner points: this speeds up
       // finding close-by corner points later on.
 
       unsigned int v=0;
-      //lev.vCornerRowLUT.clear();
+      lev.vCornerRowLUT.clear();
 #if 0
       for(int y=0; y<lev.im.size().y; y++)
       {
@@ -345,13 +418,17 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
          lev.vCornerRowLUT.push_back(v);
       }
 #endif
-/*      
-      sstm << prefix << framenum << midfix << i << postfix;
-      result = sstm.str();
-      cout << result << endl;
-      img_save(lev.im, result);
-*/
+      delete [] a;
+      a = NULL;
    }; //end of for-loop
+
+   //usleep(10000);
+   //ros::Duration(0.01).sleep(); // Sleep for 1ms 
+   //ros::Rate r2(100); //10hz
+   //while (ros::ok()) {
+   //   cout << "." << endl;
+   //   r2.sleep();
+   //}
 
 }  // End of MakeKeyFrame_Lite
 

@@ -208,6 +208,10 @@ void my_close() {
    printf("PTAM finished\n");
    printf("Unmap the memory...\n");
 
+   //*(status_reg_ptr) = 0x80000000;
+   //usleep(1000);
+   //*(status_reg_ptr) = 0x00000000;
+
    //printf("hps_virtual_base : %p\n", hps_virtual_base);
    //printf("memory size : %d\n", SDRAM_SPAN);
    //*(status_register_ptr) = 0x0;

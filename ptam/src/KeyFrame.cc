@@ -13,8 +13,13 @@
 #include <sys/mman.h>
 #include <time.h>
 #include "ros/time.h"
+//#include "ros/ros.h"
 
-//#include "ptam/System.h"
+#include "ptam/System.h"
+
+#include <signal.h>
+#include <string.h>
+#include <sys/time.h>
 
 //#include <chrono>
 //#include <thread>
@@ -26,8 +31,11 @@
 using namespace CVD;
 using namespace std;
 
-extern void* lev_img_map;
-extern void* reg_map;
+//extern void* lev_img_map;
+//extern void* reg_map;
+extern void* f2h_virtual_base;
+extern void* h2f_virtual_base;
+extern void* lwh2f_virtual_base;
 
 extern unsigned char* lev0_img_ptr;
 extern unsigned char* lev1_img_ptr;
@@ -41,20 +49,40 @@ extern unsigned int* lev1_corners_num_ptr;
 extern unsigned int* lev2_corners_num_ptr;
 extern unsigned int* lev3_corners_num_ptr;
 
-extern int length_lev;
-extern int length_reg;
+//extern int length_lev;
+//extern int length_reg;
 
 //static std::stringstream initstr;
 int framecnt = 0;
 //unsigned int raw_corners[10000] = {0,};
 static unsigned int prev_result = 0;
 static unsigned int cur_result = 0;
+
+int timercount = 0;
 //#define lev0_length 307200
 /*
 float timediff_msec(struct timeval t0, struct timeval t1) {
 	return (t1.tv_sec - t0.tv_sec) * 1000.0f + (t1.tv_usec - t0.tv_usec) / 1000.0f; 
 }
 */
+
+//void callback1(const ros::TimerEvent&) {
+//   ROS_INFO("Callback 1 triggered");
+//}
+
+void timer_handler(int signum) {
+   //static int count = 0;
+   //cout << "timer expired " << timercount << " timers" << endl;
+   //cout << "timer callback called" << endl;
+ 
+   // Trigger via Status_Register bit5
+   if (timercount == 1) {
+      *(status_reg_ptr) |= 0x10;
+      cout << "timer expired " << timercount << " timers" << endl;
+   }
+
+   timercount = 0x0;
+}
 
 void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 {
@@ -70,6 +98,21 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    ImageRef pos;
    clock_t t;
    unsigned int* a = NULL;
+   
+   struct sigaction sa;
+   struct itimerval timer;
+   memset(&sa, 0, sizeof(sa));
+   sa.sa_handler = &timer_handler;
+   sigaction(SIGVTALRM, &sa, NULL);
+
+   timer.it_value.tv_sec = 0;
+   timer.it_value.tv_usec = 8000;
+
+   timer.it_interval.tv_sec = 0;
+   timer.it_interval.tv_usec = 8000;
+   
+   //ros::NodeHandle nh;
+
    
    //ros::Time::init();
 /*
@@ -137,10 +180,10 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    //
    // Synchronize the File System and mmap()'ed lev_img_map regoion
    //
-   int val = msync(lev_img_map, length_lev, MS_ASYNC); 
+   int val = msync(f2h_virtual_base, F2H_BRIDGE_SPAN, MS_ASYNC); 
    if (val == -1) {
       printf("Error on msync! %s\n", strerror(errno));
-      cout << "length_lev: " << length_lev << endl;
+      //cout << "length_lev: " << length_lev << endl;
    } else {
       //printf("Sync on mapped memory to file succeeded: %d\n", val);
    }
@@ -156,7 +199,9 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
    //*(status_reg_ptr) = 0x80000000;
   
-    //ros::Duration(0, 1000000).sleep(); // Sleep for 1ms 
+   // Start a virtual timer, it counts down whenever this process it running
+   //setitimer(ITIMER_VIRTUAL, &timer, NULL);
+   //ros::Duration(0, 1000000).sleep(); // Sleep for 1ms 
    //usleep(10000);
    //*(status_reg_ptr) = 0x00000000;
    //usleep(10000);
@@ -176,15 +221,26 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    
    //usleep(5000);
 #else 
+   //ros::Timer timer1 = nh.createTimer(ros::Duration(0.001), callback1, true);
+   //ros::spinOnce();
 
+   //cout << "timer1 created" << endl;
+   
    //ros::Rate r(100); //10hz
+   
+   setitimer(ITIMER_VIRTUAL, &timer, NULL);
+   timercount = 0x1;
+
    unsigned int status = 1;
    //int tmpcnt = 1000000;
    while (ros::ok()) {
-      status = *(status_reg_ptr);
-      
-      if (status == 0x3) 
+      //setitimer(ITIMER_VIRTUAL, &timer, NULL);
+
+      status = *(status_reg_ptr);      
+      if (status == 0x3) { 
+         timercount = 0x0;
          break;
+      }
 
       printf("Reg: %d\r", status);
       //ros::Duration(0, 2000000).sleep();
@@ -284,19 +340,19 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
 #else
 
-        val = msync(lev_img_map, length_lev, MS_ASYNC);
+        val = msync(h2f_virtual_base, H2F_BRIDGE_SPAN, MS_ASYNC);
         if (val == -1) {
            printf("Error on msync! %s\n", strerror(errno));
-           cout << "length_lev: " << length_lev << endl;
+           //cout << "length_lev: " << length_lev << endl;
         } else {
            //printf("lev_img_map synced succeeded: %d\n", val);
         }
 
         usleep(1000);
-	//copy(BasicImage<byte>(levels_image[i], lev.im.size()), lev.im);
-        // TODO
-        // Append unsigned char* to BasicImage object
-        //CVD::BasicImage<CVD::byte> img_sdram((CVD::byte *)lev0_img_ptr, CVD::ImageRef(lev.im.width, lev.im.height));
+	
+        // copy(BasicImage<byte>(levels_image[i], lev.im.size()), lev.im);
+        // construct unsigned char* to BasicImage object
+        // CVD::BasicImage<CVD::byte> img_sdram((CVD::byte *)lev0_img_ptr, CVD::ImageRef(lev.im.width, lev.im.height));
 
         if (i == 1) { 
            CVD::copy(CVD::BasicImage<CVD::byte>(lev1_img_ptr, lev.im.size()), lev.im);
@@ -320,10 +376,10 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       //
       // Synchronize the File System and mmap()'ed reg_map regoion
       //
-      val = msync(reg_map, length_reg, MS_ASYNC);
+      val = msync(lwh2f_virtual_base, LWH2F_BRIDGE_SPAN, MS_ASYNC);
       if (val == -1) {
          printf("Error on msync! %s\n", strerror(errno));
-         cout << "length_lev: " << length_lev << endl;
+         //cout << "length_lev: " << length_lev << endl;
       } else {
          //printf("reg_map synced succeeded: %d\n", val);
       }

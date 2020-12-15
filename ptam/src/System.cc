@@ -93,7 +93,7 @@ void System::Run()
   while (ros::ok())
   {
      ros::getGlobalCallbackQueue()->callAvailable();
-     image_queue_.callAvailable(ros::WallDuration(0.01));
+     image_queue_.callAvailable(ros::WallDuration(0.03));
     
      r.sleep();
 
@@ -177,7 +177,7 @@ void System::imageCallback(const sensor_msgs::ImageConstPtr & img)
   }
   //  ros::Duration(0, 5000000).sleep();
 
-    usleep(200000);
+    usleep(10000);
   //
   //  ros::Time t1 = img->header.stamp;
   //

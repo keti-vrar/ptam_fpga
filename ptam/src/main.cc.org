@@ -27,17 +27,12 @@ void my_close();
 void segfault_sigaction(int signal, siginfo_t *si, void *arg);
 struct sigaction sa;
 
-//void* lev_img_map;
-//void* reg_map;
-void* h2f_virtual_base;
-void* f2h_virtual_base;
-void* lwh2f_virtual_base;
-
+void* lev_img_map;
+void* reg_map;
 unsigned char* lev0_img_ptr;
 unsigned char* lev1_img_ptr;
 unsigned char* lev2_img_ptr;
 unsigned char* lev3_img_ptr;
-unsigned char* lev4_img_ptr;
 
 unsigned int* corners_pos_ptr;
 unsigned int* status_reg_ptr;
@@ -83,8 +78,7 @@ int main(int argc, char** argv)
 int mmap_init() 
 {
    int fd, pagesize; 
-   //off_t lev_offset, reg_offset;
-   off_t f2h_offset, h2f_offset, lwh2f_offset;
+   off_t lev_offset, reg_offset;
 
    printf("mmap_init+++\n");
 
@@ -101,26 +95,22 @@ int mmap_init()
    // Verify that BASEs are page aligned
    //
    pagesize = sysconf(_SC_PAGESIZE);
-   //lev_offset = LEV_IMG_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1);
-   //reg_offset = REG_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1); 
-   f2h_offset = F2H_BRIDGE_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1);
-   h2f_offset = H2F_BRIDGE_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1);
-   lwh2f_offset = LWH2F_BRIDGE_BASE & ~(sysconf(_SC_PAGE_SIZE) -1);
-
+   lev_offset = LEV_IMG_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1);
+   reg_offset = REG_BASE & ~(sysconf(_SC_PAGE_SIZE) - 1); 
+ 
    //
    // open() the /dev/mem device
    //
    if ((fd = open("/dev/mem", (O_RDWR | O_SYNC))) == -1) {
-      cout << "/dev/mem open failed" << endl;
+      printf("Device Open Failed\n");
       return (1);
    } else {
-      cout << "/dev/mem open success" << endl;
+      printf("Device Open Success\n");
    }
 
    //
    // memory mapping for hardware 
    //
-#if 0
    length_lev = pagesize * 150;
    lev_img_map = mmap(NULL, length_lev, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, lev_offset);
    if (lev_img_map == MAP_FAILED) {
@@ -128,6 +118,7 @@ int mmap_init()
       close(fd);
       exit(EXIT_FAILURE);
    }
+   
    length_reg = pagesize * 1;
    reg_map = mmap(NULL, length_reg, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, reg_offset);
    if (reg_map == MAP_FAILED) {
@@ -135,36 +126,14 @@ int mmap_init()
       close(fd);
       exit(EXIT_FAILURE);
    }
+
    printf("lev_img_map: %p\n", (void *)lev_img_map);
    printf("reg_map: %p\n", (void *)reg_map);
-#endif
-   f2h_virtual_base = mmap(NULL, F2H_BRIDGE_SPAN, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, f2h_offset);
-   h2f_virtual_base = mmap(NULL, H2F_BRIDGE_SPAN, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, h2f_offset);
-   lwh2f_virtual_base = mmap(NULL, LWH2F_BRIDGE_SPAN, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, lwh2f_offset); 
-  
-   if (f2h_virtual_base == MAP_FAILED) { //|| ocm_virtual_base || f2h_v    irtual_base || axi_lw_virtual_base) {
-      cout << "ERROR: mmap() failed on f2h_virtual" << endl;
-      close(fd);
-      return (1);
-   } else if (h2f_virtual_base == MAP_FAILED) {
-      cout << "ERROR: mmap() failed on h2f_virtual" << endl;
-      close(fd);
-      return (1);
-   } else if (lwh2f_virtual_base == MAP_FAILED) {
-      cout << "ERROR: mmap() failed on lwh2f_virtual" << endl;
-      close(fd);
-      return (1);
-   } else {
-      printf("f2h_virtual_base : 0x%p\n", f2h_virtual_base);
-      printf("h2f_virtual_base : 0x%p\n", h2f_virtual_base);
-      printf("lwh2f_virtual_base : 0x%p\n", lwh2f_virtual_base);
-   }
 
    //
    // Use the mmap()'ed pointer like any other pointer
    // Assign Image' virtual base address
    //
-#if 0
    if (lev_img_map != NULL) {
       lev0_img_ptr = static_cast<unsigned char*>(lev_img_map);
       lev1_img_ptr = static_cast<unsigned char*>(lev_img_map + LEV1_OFFSET);
@@ -186,35 +155,6 @@ int mmap_init()
       close(fd);
       exit(EXIT_FAILURE);
    }
-#endif
-   if (f2h_virtual_base != NULL) {
-      lev0_img_ptr = static_cast<unsigned char*>(f2h_virtual_base);
-      corners_pos_ptr = static_cast<unsigned int*>(f2h_virtual_base + 0x4C000);
-   } else {
-      close(fd);
-      exit(EXIT_FAILURE);
-   }
-   // lev1~4 images via h2f_virtual_base
-   if (h2f_virtual_base != NULL) {
-      lev1_img_ptr = static_cast<unsigned char*>(h2f_virtual_base);
-      lev2_img_ptr = static_cast<unsigned char*>(h2f_virtual_base + 0x12C00);
-      lev3_img_ptr = static_cast<unsigned char*>(h2f_virtual_base + 0x17700);
-      lev4_img_ptr = static_cast<unsigned char*>(h2f_virtual_base + 0x189C0);
-   } else {
-      close(fd);
-      exit(EXIT_FAILURE);
-   }
-   // 
-   if (lwh2f_virtual_base != NULL) {
-      status_reg_ptr = static_cast<unsigned int*>(lwh2f_virtual_base);
-      lev0_corners_num_ptr = static_cast<unsigned int*>(lwh2f_virtual_base + 0x4);
-      lev1_corners_num_ptr = static_cast<unsigned int*>(lwh2f_virtual_base + 0x8);
-      lev2_corners_num_ptr = static_cast<unsigned int*>(lwh2f_virtual_base + 0xC);
-      lev3_corners_num_ptr = static_cast<unsigned int*>(lwh2f_virtual_base + 0x10);
-   } else {
-      close(fd);
-      exit(EXIT_FAILURE);
-   }
 
    // Check the assigned virtual addres
    printf("lev0_img_ptr: %p\n", lev0_img_ptr);
@@ -222,7 +162,6 @@ int mmap_init()
    printf("lev2_img_ptr: %p\n", lev2_img_ptr);
    printf("lev3_img_ptr: %p\n", lev3_img_ptr);
    printf("corners_pos_ptr: %p\n", corners_pos_ptr);
-
    printf("status_reg_ptr: %p\n", status_reg_ptr);
    printf("n_corners_lv0_ptr: %p\n", lev0_corners_num_ptr);
    printf("n_corners_lv1_ptr: %p\n", lev1_corners_num_ptr);
@@ -279,11 +218,9 @@ void my_close() {
  
    //munmap(hps_virtual_base, SDRAM_SPAN);
    //munmap(lw_axi_h2f_base, AXI_LW_MEM_SPAN);
-   //munmap(lev_img_map, length_lev);
-   //munmap(reg_map, length_reg);
-   munmap(f2h_virtual_base, F2H_BRIDGE_SPAN);
-   munmap(h2f_virtual_base, H2F_BRIDGE_SPAN);
-   munmap(lwh2f_virtual_base, LWH2F_BRIDGE_SPAN);
+   munmap(lev_img_map, length_lev);
+   munmap(reg_map, length_reg);
+
    printf("================================================\n");
 }
 

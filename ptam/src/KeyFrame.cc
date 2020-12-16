@@ -193,16 +193,16 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    //cout << "SET Status_REG" << endl;
 
    // FPGA reset everytime due to Design defect
-   *(status_reg_ptr) = 0x80000000;
-   usleep(1000);
+   //*(status_reg_ptr) = 0x80000000;
+   //usleep(1000);
    //*(status_reg_ptr) = 0x00000000;
 
-   //*(status_reg_ptr) = 0x80000000;
+   *(status_reg_ptr) = 0x80000000;
   
    // Start a virtual timer, it counts down whenever this process it running
    //setitimer(ITIMER_VIRTUAL, &timer, NULL);
    //ros::Duration(0, 1000000).sleep(); // Sleep for 1ms 
-   //usleep(10000);
+   usleep(1000);
    //*(status_reg_ptr) = 0x00000000;
    //usleep(10000);
 

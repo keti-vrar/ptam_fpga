@@ -189,7 +189,7 @@ int mmap_init()
 #endif
    if (f2h_virtual_base != NULL) {
       lev0_img_ptr = static_cast<unsigned char*>(f2h_virtual_base);
-      corners_pos_ptr = static_cast<unsigned int*>(f2h_virtual_base + 0x4C000);
+      //corners_pos_ptr = static_cast<unsigned int*>(f2h_virtual_base + 0x4C000);
    } else {
       close(fd);
       exit(EXIT_FAILURE);
@@ -200,6 +200,7 @@ int mmap_init()
       lev2_img_ptr = static_cast<unsigned char*>(h2f_virtual_base + 0x12C00);
       lev3_img_ptr = static_cast<unsigned char*>(h2f_virtual_base + 0x17700);
       lev4_img_ptr = static_cast<unsigned char*>(h2f_virtual_base + 0x189C0);
+      corners_pos_ptr = static_cast<unsigned int*>(h2f_virtual_base + 0x18E70);
    } else {
       close(fd);
       exit(EXIT_FAILURE);

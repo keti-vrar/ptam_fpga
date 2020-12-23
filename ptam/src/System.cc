@@ -80,7 +80,7 @@ void System::init(const CVD::ImageRef & size)
 
 void System::Run()
 {
-#if 0
+#if 1
   while(ros::ok()){
     //    ros::getGlobalCallbackQueue()->callAvailable(ros::WallDuration(0.01));
     //    image_queue_.callAvailable();
@@ -89,11 +89,11 @@ void System::Run()
     image_queue_.callAvailable(ros::WallDuration(0.01));
   }
 #else
-  ros::Rate r(30); //30 Hz
+  ros::Rate r(20); //30 Hz
   while (ros::ok())
   {
      ros::getGlobalCallbackQueue()->callAvailable();
-     image_queue_.callAvailable(ros::WallDuration(0.03));
+     image_queue_.callAvailable(ros::WallDuration(0.01));
     
      r.sleep();
 
@@ -176,9 +176,7 @@ void System::imageCallback(const sensor_msgs::ImageConstPtr & img)
     mGLWindow->HandlePendingEvents();
   }
   //  ros::Duration(0, 5000000).sleep();
-
-    usleep(10000);
-  //
+  usleep(20000);
   //  ros::Time t1 = img->header.stamp;
   //
   //  static unsigned long c=0;

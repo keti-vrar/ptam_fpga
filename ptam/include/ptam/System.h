@@ -83,11 +83,21 @@
 #define LEV2_CORNERS_NUM_OFFSET 0xC
 #define LEV3_CORNERS_NUM_OFFSET 0x10
 
-#define F2H_BRIDGE_BASE 0x0
-#define F2H_BRIDGE_SPAN 389120
 
-#define H2F_BRIDGE_BASE 0x80000000
-#define H2F_BRIDGE_SPAN 102400
+// Used for FPGA_v7.5
+#define F2H_BRIDGE_BASE 0x80000000
+#define F2H_BRIDGE_SPAN 311296 // 307200 + 4096(spare)
+
+#define H2F_BRIDGE_BASE 0x90000000
+#define H2F_BRIDGE_SPAN 188416 //for FPGA_v7.6 //184320 for FPGA_v7.5
+// lev1: 320x240 : 76800 byte
+// lev2: 160x120 : 19200 byte
+// lev3: 80x60   :  4800 byte
+// lev4: 40x30   :  1200 byte
+// nCor: lev0~3  :    32 byte
+// Corn: 20000add: 80000 byte
+// Sum :          182000 byte, /4096 = 44.5xxxx
+//                page_size * 45 = 184320
 
 #define LWH2F_BRIDGE_BASE 0xF9000000
 #define LWH2F_BRIDGE_SPAN 4096

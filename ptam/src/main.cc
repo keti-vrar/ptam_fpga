@@ -189,28 +189,34 @@ int mmap_init()
 #endif
    if (f2h_virtual_base != NULL) {
       lev0_img_ptr = static_cast<unsigned char*>(f2h_virtual_base);
-      corners_pos_ptr = static_cast<unsigned int*>(f2h_virtual_base + 0x4C000);
    } else {
       close(fd);
       exit(EXIT_FAILURE);
    }
    // lev1~4 images via h2f_virtual_base
    if (h2f_virtual_base != NULL) {
-      lev1_img_ptr = static_cast<unsigned char*>(h2f_virtual_base);
-      lev2_img_ptr = static_cast<unsigned char*>(h2f_virtual_base + 0x12C00);
-      lev3_img_ptr = static_cast<unsigned char*>(h2f_virtual_base + 0x17700);
-      lev4_img_ptr = static_cast<unsigned char*>(h2f_virtual_base + 0x189C0);
+      lev1_img_ptr = static_cast<unsigned char*>(h2f_virtual_base);             // 0x9000_0000
+      lev2_img_ptr = static_cast<unsigned char*>(h2f_virtual_base + 0x12C00);   // 0x9001_2C00
+      lev3_img_ptr = static_cast<unsigned char*>(h2f_virtual_base + 0x17700);   // 0x9001_7700
+      lev4_img_ptr = static_cast<unsigned char*>(h2f_virtual_base + 0x189C0);   // 0x9001_89C0
+
+      lev0_corners_num_ptr = static_cast<unsigned int*>(h2f_virtual_base + 0x18E70);  // 0xF900_0004
+      lev1_corners_num_ptr = static_cast<unsigned int*>(h2f_virtual_base + 0x18E74);  // 0xF900_0008
+      lev2_corners_num_ptr = static_cast<unsigned int*>(h2f_virtual_base + 0x18E78);  // 0xF900_000C
+      lev3_corners_num_ptr = static_cast<unsigned int*>(h2f_virtual_base + 0x18E7C); // 0xF900_0010
+
+      corners_pos_ptr = static_cast<unsigned int*>(h2f_virtual_base + 0x18E80); // 0x9001_8E70
    } else {
       close(fd);
       exit(EXIT_FAILURE);
    }
    // 
    if (lwh2f_virtual_base != NULL) {
-      status_reg_ptr = static_cast<unsigned int*>(lwh2f_virtual_base);
-      lev0_corners_num_ptr = static_cast<unsigned int*>(lwh2f_virtual_base + 0x4);
-      lev1_corners_num_ptr = static_cast<unsigned int*>(lwh2f_virtual_base + 0x8);
-      lev2_corners_num_ptr = static_cast<unsigned int*>(lwh2f_virtual_base + 0xC);
-      lev3_corners_num_ptr = static_cast<unsigned int*>(lwh2f_virtual_base + 0x10);
+      status_reg_ptr = static_cast<unsigned int*>(lwh2f_virtual_base);              // 0xF900_0000
+      //lev0_corners_num_ptr = static_cast<unsigned int*>(lwh2f_virtual_base + 0x4);  // 0xF900_0004
+      //lev1_corners_num_ptr = static_cast<unsigned int*>(lwh2f_virtual_base + 0x8);  // 0xF900_0008
+      //lev2_corners_num_ptr = static_cast<unsigned int*>(lwh2f_virtual_base + 0xC);  // 0xF900_000C
+      //lev3_corners_num_ptr = static_cast<unsigned int*>(lwh2f_virtual_base + 0x10); // 0xF900_0010
    } else {
       close(fd);
       exit(EXIT_FAILURE);

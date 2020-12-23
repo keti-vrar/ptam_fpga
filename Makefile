@@ -1,7 +1,7 @@
 all:
-	cd ptam_com && make -j8
+	cd ptam_com && make -j8 -g
 	cd ..
-	cd ptam && make -j8
+	cd ptam && make -j8 -g
 	cd ..
 
 clean: 

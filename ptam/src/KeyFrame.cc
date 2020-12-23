@@ -60,6 +60,7 @@ static unsigned int cur_result = 0;
 
 int timercount = 0;
 //#define lev0_length 307200
+
 /*
 float timediff_msec(struct timeval t0, struct timeval t1) {
 	return (t1.tv_sec - t0.tv_sec) * 1000.0f + (t1.tv_usec - t0.tv_usec) / 1000.0f; 
@@ -69,7 +70,7 @@ float timediff_msec(struct timeval t0, struct timeval t1) {
 //void callback1(const ros::TimerEvent&) {
 //   ROS_INFO("Callback 1 triggered");
 //}
-
+/*
 void timer_handler(int signum) {
    //static int count = 0;
    //cout << "timer expired " << timercount << " timers" << endl;
@@ -79,14 +80,16 @@ void timer_handler(int signum) {
    if (timercount == 1) {
       *(status_reg_ptr) |= 0x10;
       cout << "timer expired " << timercount << " timers" << endl;
+      *(status_reg_ptr) = 0x0;
    }
 
    timercount = 0x0;
 }
-
+*/
 void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 {
    //cout << "MakeKeyFrame_Lite+++" << endl;
+
    // Perpares a Keyframe from an image. Generates pyramid levels, does FAST detection, etc.
    // Does not fully populate the keyframe struct, but only does the bits needed for the tracker;
    // e.g. does not perform FAST nonmax suppression. Things like that which are needed by the
@@ -98,7 +101,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    ImageRef pos;
    clock_t t;
    unsigned int* a = NULL;
-   
+  /* 
    struct sigaction sa;
    struct itimerval timer;
    memset(&sa, 0, sizeof(sa));
@@ -110,35 +113,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
    timer.it_interval.tv_sec = 0;
    timer.it_interval.tv_usec = 8000;
-   
-   //ros::NodeHandle nh;
-
-   
-   //ros::Time::init();
-/*
-   if (lev_img_map != NULL) {
-      lev0_img_ptr = static_cast<unsigned char*>(lev_img_map);
-      lev1_img_ptr = static_cast<unsigned char*>(lev_img_map + LEV1_OFFSET);
-      lev2_img_ptr = static_cast<unsigned char*>(lev_img_map + LEV2_OFFSET);
-      lev3_img_ptr = static_cast<unsigned char*>(lev_img_map + LEV3_OFFSET);
-      corners_pos_ptr = static_cast<unsigned int*>(lev_img_map + CORNERS_POS_BASE);
-   } else {
-      //close(fd);
-      exit(EXIT_FAILURE);
-   }
-   
-   if (reg_map != NULL) {
-      status_reg_ptr = static_cast<unsigned int*>(reg_map);
-      lev0_corners_num_ptr = static_cast<unsigned int*>(reg_map + LEV0_CORNERS_NUM_OFFSET);
-      lev1_corners_num_ptr = static_cast<unsigned int*>(reg_map + LEV1_CORNERS_NUM_OFFSET);
-      lev2_corners_num_ptr = static_cast<unsigned int*>(reg_map + LEV2_CORNERS_NUM_OFFSET);
-      lev3_corners_num_ptr = static_cast<unsigned int*>(reg_map + LEV3_CORNERS_NUM_OFFSET);
-   } else {
-      //close(fd);
-      exit(EXIT_FAILURE);
-   }
-*/ 
-   
+  */
    framecnt++;
    if (framecnt % 10 == 0) {
       t = clock();
@@ -149,19 +124,12 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    //cout << "im.resize()" << endl;
    aLevels[0].im.resize(im.size());
 
-   //cout << "copy im to aLevels[0].im" << endl;
    copy(im, aLevels[0].im);
-   //cout << "im.totalsize: " << im.totalsize() << endl;
 #if 1
-   //
    // Copy BasicImage &im to SDRAM's lev0_img_ptr
    // void * memcpy ( void * destination, const void * source, size_t num );   
    memcpy(lev0_img_ptr, im.begin(), im.totalsize());
-
-   //ros::Duration(0, 1000000).sleep(); // delay for 1ms
-   usleep(1000);
    //printf("Copied im to lev0_img_ptr\n");
-
    //std::copy(im.begin(), im.totalsize(), lev0_img_ptr);
 #else   
    for (int y = 0; y < im.size().y; y++) {
@@ -176,144 +144,102 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    cout << "copy im to mmap()'ed region" << endl;
 #endif
 
-#if 1
-   //
-   // Synchronize the File System and mmap()'ed lev_img_map regoion
-   //
-   int val = msync(f2h_virtual_base, F2H_BRIDGE_SPAN, MS_ASYNC); 
-   if (val == -1) {
-      printf("Error on msync! %s\n", strerror(errno));
-      //cout << "length_lev: " << length_lev << endl;
-   } else {
-      //printf("Sync on mapped memory to file succeeded: %d\n", val);
-   }
-#endif
-    
    // Set the Status Register to give ownership of SDRAM to FPGA
-   //cout << "SET Status_REG" << endl;
+   // cout << "SET Status_REG" << endl;
 
    // FPGA reset everytime due to Design defect
-   *(status_reg_ptr) = 0x80000000;
-   usleep(1000);
-   //*(status_reg_ptr) = 0x00000000;
-
    //*(status_reg_ptr) = 0x80000000;
-  
-   // Start a virtual timer, it counts down whenever this process it running
-   //setitimer(ITIMER_VIRTUAL, &timer, NULL);
-   //ros::Duration(0, 1000000).sleep(); // Sleep for 1ms 
-   //usleep(10000);
-   //*(status_reg_ptr) = 0x00000000;
-   //usleep(10000);
-
+   usleep(1000);
+   
    *(status_reg_ptr) = 0x1; 
 
-#if 0
-   while (true) {
-
-      if (*(status_reg_ptr) == 0x3) {
-  	cout << "status: ok" << endl; 
-	break;
-      }
-      printf("waiting: %d\r", *(status_reg_ptr));
-      //usleep(7000);
-   }
-   
-   //usleep(5000);
-#else 
-   //ros::Timer timer1 = nh.createTimer(ros::Duration(0.001), callback1, true);
-   //ros::spinOnce();
-
-   //cout << "timer1 created" << endl;
-   
-   //ros::Rate r(100); //10hz
-   
-   setitimer(ITIMER_VIRTUAL, &timer, NULL);
-   timercount = 0x1;
+   //setitimer(ITIMER_VIRTUAL, &timer, NULL);
+   //timercount = 0x1;
 
    unsigned int status = 1;
-   //int tmpcnt = 1000000;
-   while (ros::ok()) {
-      //setitimer(ITIMER_VIRTUAL, &timer, NULL);
+   //unsigned int * result_tri = NULL;
+   //unsigned int num_tri = 0;
+   ImageRef corner_pos2;
+   int waitCnt = 0;
 
-      status = *(status_reg_ptr);      
-      if (status == 0x3) { 
-         timercount = 0x0;
+   while (true) { //(ros::ok()) {
+      //setitimer(ITIMER_VIRTUAL, &timer, NULL);
+ 
+      if (waitCnt > 100) { 
+         *(status_reg_ptr) = 0x80000000;
+         usleep(1000);
+         *(status_reg_ptr) = 0x0;
          break;
       }
 
+      status = *(status_reg_ptr);      
+      if (status == 0x3) { 
+         //timercount = 0x0;
+         //cout << ".";
+         // Insert Trigger Signal when Corner Result is Zero.
+         //result_tri = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr) + *(lev2_corners_num_ptr);
+         //corner_pos2.y = (*(result_tri) >> 16) & 0x03FF;
+         //corner_pos2.x = *(result_tri) & 0x0000FFFF;
+ 
+         //if (corner_pos2.x == 0 && corner_pos2.y == 0) {
+         //  *(status_reg_ptr) |= 0x10;
+         //  cout << "zero output found" << endl;
+         //  printf("addr: %p, result+el: 0x%x, x: %d, y: %d\n", result_tri, *(result_tri), corner_pos2.x, corner_pos2.y);
+           //*(status_reg_ptr) = 0x0;
+         //}
+         cout << "waitCnt: " << waitCnt << endl;
+         break;
+      }
       printf("Reg: %d\r", status);
-      //ros::Duration(0, 2000000).sleep();
-      //r.sleep();
+      waitCnt++;
       usleep(2000);
-      //printf("Reg: %d\r", status); 
-      //std::this_thread::sleep_for(std::chrono::nanoseconds(1000000));
    }
-   //cout << endl;
-#endif   
-   //
+
    // Clear the Status Register to get ownership of SDRAM 
-   //cout << "CLEAR Status_REG" << endl;
-   //usleep(1000);
-   
-   //status = 0;
+   // cout << "CLEAR Status_REG" << endl;
    *(status_reg_ptr) = 0x0; 
 
-   //ros::Duration(0, 1000000).sleep(); // delay for 1ms
+   usleep(10000);
 
-   usleep(100000);
-#if 0   
-   //
-   // Again Synchronize the File System and mmap()'ed lev_img_map regoion before copy back.
-   //
-   val = msync(lev_img_map, length_lev, MS_ASYNC);
-   if (val == -1) {
-      printf("Error on msync! %s\n", strerror(errno));
-      cout << "length_lev: " << length_lev << endl;
-   } else {
-      //printf("lev_img_map synced succeeded: %d\n", val);
-   }
-#endif
-
-   // Check lev0 updated
-   //while (true) {
-   
-   /*
-   memcpy(cur_result, corners_pos_ptr, sizeof(unsigned int) * 10);
-   
-      for (int i = 0; i < 6; i++) {
-         if (cur_result[i] != prev_result[i]) {
-            // looping copy again till matched
-         } else {
-            break;
-         } 
-
-      }
-   */   
-   //}
-   
-   // cur to prev
-   //memcpy(prev_result, cur_result, sizeof(unsigned int) * 6);
-   //&prev_result = &cur_result;
- 
-   cur_result = *(corners_pos_ptr);
+   /*cur_result = *(corners_pos_ptr);
    if (cur_result == prev_result) {
-      // read again
+      // data not updated
       cout << "o";
    } else {
-      // goto next step!
+      // new data incoming!
       cout << "x";
       //break;
    }
-   prev_result = cur_result;
+   prev_result = cur_result;*/
+
+/*
+   // Insert Trigger Signal when Corner Result is Zero.
+   unsigned int * result_tri = NULL;
+   unsigned int num_tri = 0;
+
+   result_tri = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr) + *(lev2_corners_num_ptr);
+   //num_tri = *(lev3_corners_num_ptr);
+
+   ImageRef corner_pos2;
+   //for (unsigned int el = 0; el < num_tri; el++) {
+   corner_pos2.y = (*(result_tri) >> 16) & 0x03FF;
+   corner_pos2.x = *(result_tri) & 0x0000FFFF;
+       
+   if (corner_pos2.x == 0 && corner_pos2.y == 0) {
+      // Do trigger for FPGA to capture output via SignalTap.
+      *(status_reg_ptr) |= 0x10;
+      cout << "zero output found" << endl;
+      printf("addr: %p, result+el: 0x%x, x: %d, y: %d\n", result_tri, *(result_tri), corner_pos2.x, corner_pos2.y);
+      *(status_reg_ptr) = 0x0;
+   }
+*/   
 
    for (int i = 0; i < LEVELS; i++) // To handle SBI into Keyframe
    {
-      //std::stringstream sstm;
       Level &lev = aLevels[i];      
 
       if (i != 0) {
-         lev.im.resize(aLevels[i-1].im.size() / 2);       // image resize
+         lev.im.resize(aLevels[i-1].im.size() / 2); // image resize
 #if 0
          for (int y=0; y< lev.im.size().y; y++) {
             for (int x=0; x< lev.im.size().x; x++) {
@@ -330,30 +256,10 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 //             }
             }
          }
-         val = msync(lev_img_map, length_lev, MS_ASYNC);
-         if (val == -1) {
-            printf("Error on msync! %s\n", strerror(errno));
-            cout << "length_lev: " << length_lev << endl;
-         } else {
-            printf("lev_img_map synced succeeded: %d\n", val);
-         }
-
 #else
-
-        val = msync(h2f_virtual_base, H2F_BRIDGE_SPAN, MS_ASYNC);
-        if (val == -1) {
-           printf("Error on msync! %s\n", strerror(errno));
-           //cout << "length_lev: " << length_lev << endl;
-        } else {
-           //printf("lev_img_map synced succeeded: %d\n", val);
-        }
-
-        usleep(1000);
-	
         // copy(BasicImage<byte>(levels_image[i], lev.im.size()), lev.im);
         // construct unsigned char* to BasicImage object
         // CVD::BasicImage<CVD::byte> img_sdram((CVD::byte *)lev0_img_ptr, CVD::ImageRef(lev.im.width, lev.im.height));
-
         if (i == 1) { 
            CVD::copy(CVD::BasicImage<CVD::byte>(lev1_img_ptr, lev.im.size()), lev.im);
         } else if (i == 2) {
@@ -372,76 +278,128 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       lev.vCorners.clear();
       lev.vCandidates.clear();
       lev.vMaxCorners.clear();
-#if 1
-      //
-      // Synchronize the File System and mmap()'ed reg_map regoion
-      //
-      val = msync(lwh2f_virtual_base, LWH2F_BRIDGE_SPAN, MS_ASYNC);
-      if (val == -1) {
-         printf("Error on msync! %s\n", strerror(errno));
-         //cout << "length_lev: " << length_lev << endl;
-      } else {
-         //printf("reg_map synced succeeded: %d\n", val);
-      }
-#endif
+    
+      //usleep(1000);
+
+      unsigned int num = 0;   
       unsigned int * result = NULL; 
-      unsigned int num = 0;  
    
       if (i == 0) {
-         result = corners_pos_ptr;
          num = *(lev0_corners_num_ptr);
+         result = corners_pos_ptr;
       } else if (i == 1) {
-         result = corners_pos_ptr + *(lev0_corners_num_ptr); 
          num = *(lev1_corners_num_ptr);
+         result = corners_pos_ptr + *(lev0_corners_num_ptr); 
       } else if (i == 2) {
-         result = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr);
          num = *(lev2_corners_num_ptr);
+         result = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr);
       } else if (i == 3) {
-         result = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr) + *(lev2_corners_num_ptr);
          num = *(lev3_corners_num_ptr);
+         result = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr) + *(lev2_corners_num_ptr);
       } else {
-         // do something  
+         //   
       }
+      //cout << "lev: " << i << ", cn-Num: " << num << ", result_addr " << result << endl;
+      cout << "lev: " << i << ", NumOfCorner: " << num << ", AddrOfCorner: " << result << endl;
 #if 0
       //vector<ImageRef> levCorners;
       //levCorners.resize(num); // testing for heap corruption
+      int zeroCnt = 0;
       ImageRef corner_pos;
       for (unsigned int el = 0; el < num; el++) {
          // Upper 2-bytes mean X-position, Lower 2-bytes mean Y-position.
-         corner_pos.x = *(result + el) >> 16;
-         corner_pos.y = *(result + el) & 0x0000FFFF;
+         corner_pos.y = (*(result + el) >> 16) & 0x03FF;
+         corner_pos.x = *(result + el) & 0x0000FFFF;
          //levCorners.push_back(corner_pos);
          lev.vCorners.push_back(corner_pos);
-         //printf("result+el: 0x%x, x: 0x%x, y: 0x%x\n", *(result + el), corner_pos.x, corner_pos.y);
+         //printf("addr: %p, result+el: 0x%x, x: %d, y: %d\n", result+el, *(result + el), corner_pos.x, corner_pos.y);
+         //cout << "lev: " << i << ", cn-Num: " << num << endl;
+      
+         if (corner_pos.x == 0 && corner_pos.y == 0) {
+         //   zeroCnt++;
+         //}
+         //if (zeroCnt == 5) {
+            // Do trigger for FPGA to capture output via SignalTap.
+            *(status_reg_ptr) |= 0x10;
+            cout << "zero output found" << endl;
+            printf("addr: %p, result+el: 0x%x, x: %d, y: %d\n", result+el, *(result     + el), corner_pos.x, corner_pos.y);
+            cout << "lev: " << i << ", cn-Num: " << num << endl;
+
+            *(status_reg_ptr) = 0x0;
+         }
       }
 #else 
-      //cout << num << endl;
-      // Ignore lv3'corner result
-      //unsigned int raw_corners[10000] = {0,};
-      a = new unsigned int[num];
-      if (i != 3) {
-         std::copy(result, result+num, a);//raw_corners);
+      //usleep(10000);
 
-         ImageRef corner_pos;
-         unsigned int tmp = 0;
-         for (unsigned int i=0; i<num; i++) {
-            tmp = *(a + i); //raw_corners[i];
-            corner_pos.y = (tmp >> 16) & 0x3FF;
-            corner_pos.x = tmp & 0x0000FFFF;
-            lev.vCorners.push_back(corner_pos);
+      a = new unsigned int[num];
+      std::fill_n(a, num, 0);
+      std::copy(result, result+num, a);
+
+      ImageRef corner_pos;
+      unsigned int tmp = 0;
+      for (unsigned int el=0; el < num; el++) {
+         tmp = *(a + el); 
+
+         corner_pos.y = (tmp >> 16) & 0x3FF;
+         corner_pos.x = tmp & 0x0000FFFF;
+ 
+         if (i == 0 && (corner_pos.x > 640 || corner_pos.y > 480)) {
+            continue;
+         } else if (i == 1 && (corner_pos.x > 320 || corner_pos.y > 240)) {
+            continue;
+         } else if (i == 2 && (corner_pos.x > 160 || corner_pos.y > 120)) {
+            continue;
+         } else if (i == 3 && (corner_pos.x > 80 || corner_pos.y > 60)) {
+            continue;
          }
-      } 
-      else {
-         //lev.vCorners.clear();
+         lev.vCorners.push_back(corner_pos);
+/*
+         if (corner_pos.x == 0 && corner_pos.y == 0) {
+             // Do trigger for FPGA to capture output via SignalTap.
+             *(status_reg_ptr) |= 0x10;
+             
+             printf("CornerOfRaw: 0x%x, x: %d, y: %d\n", tmp, corner_pos.x, corner_pos.y);
+             cout << "lev: " << i << ", CornerSize: " << num << "<---Zero Corner detected " << endl;
+ 
+             *(status_reg_ptr) = 0x0;
+         } 
+        
+         if (i == 0) { 
+            if (corner_pos.x > 640 || corner_pos.y > 480) {
+                cout << "ERROR !!! lev: " << i << ", [" << el << "/" << num << "] has x, y: " << corner_pos.x << ", " << corner_pos.y << endl;
+            }
+         } else if (i == 1) {
+            if (corner_pos.x > 320 || corner_pos.y > 240) {
+               cout << "ERROR !!! lev: " << i << ", [" << el << "/" << num << "] has x, y: " << corner_pos.x << ", " << corner_pos.y << endl;
+            }
+         } else if (i == 2) {
+            if (corner_pos.x > 160 || corner_pos.y > 120) {
+               cout << "ERROR !!! lev: " << i << ", [" << el << "/" << num << "] has x, y: " << corner_pos.x << ", " << corner_pos.y << endl;
+            }  
+         } else if (i == 3) {
+            if (corner_pos.x > 80 || corner_pos.y > 60) {
+               cout << "ERROR !!! lev: " << i << ", [" << el << "/" << num << "] has x, y: " << corner_pos.x << ", " << corner_pos.y << endl;
+            }
+         }
+*/
       }
 #endif
-      //printf("lev[%d]'corner size: %d\n", i, num);//.*(number_corners[i]));
-
+      //printf("lev[%d], cnNum-Reg: %d, cnSize-Vec: %d\n", i, num, lev.vCorners.size());//.*(number_corners[i]));
+      //if (i != 0) {
+      /*for (int cn = 0; cn < lev.vCorners.size(); cn++) {
+         cout << "lev[" << i << "]" << "[" << cn << "/" << lev.vCorners.size() << "] " << lev.vCorners.at(cn) << endl; 
+      } */
+      //}
       // Assign results
-      //lev.vCorners = levCorners;
       //cout << "lev[" << i << "] " << lev.vCorners.size() << endl;
       //cout << lev.vCorners.at(0) << lev.vCorners.at(1) << lev.vCorners.at(2) << lev.vCorners.at(3) << endl;
+      int same = 0;
+      if (num == lev.vCorners.size()) {
+         same = 1;
+      } 
+      cout << "CN-NumReg: " << num << ", CN-Vec: " << lev.vCorners.size() << "?=" << same << endl;
 
+ 
       const ptam::PtamParamsConfig& pPars = PtamParameters::varparams();
       if (pPars.AdaptiveThrs) {
          buff = lev.vCorners.size()-pPars.AdaptiveThrsMult*pPars.MaxPatchesPerFrame/pow(2.0,i);
@@ -450,11 +408,8 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       else
          thrs[i]=0;
 
-         //thrs[i]=0;
-
       // Generate row look-up-table for the FAST corner points: this speeds up
       // finding close-by corner points later on.
-
       unsigned int v=0;
       lev.vCornerRowLUT.clear();
 #if 0
@@ -476,17 +431,10 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 #endif
       delete [] a;
       a = NULL;
+
    }; //end of for-loop
 
-   //usleep(10000);
-   //ros::Duration(0.01).sleep(); // Sleep for 1ms 
-   //ros::Rate r2(100); //10hz
-   //while (ros::ok()) {
-   //   cout << "." << endl;
-   //   r2.sleep();
-   //}
-
-}  // End of MakeKeyFrame_Lite
+}  // end of MakeKeyFrame_Lite()
 
 
 #if 0 
@@ -623,22 +571,24 @@ void KeyFrame::MakeKeyFrame_Rest()
     // .. find those FAST corners which are maximal..
     
     // minho - Why occured error.. {
-/*
-    try {
+
+    /*try {
       fast_nonmax(lev.im, lev.vCorners, 10, lev.vMaxCorners);
     } catch (exception& e) {
       cerr << "Exception caught : " << e.what() << endl;
-    }
+    }*/
     // }
-*/
+
     lev.vMaxCorners = lev.vCorners;
     // .. and then calculate the Shi-Tomasi scores of those, and keep the ones with
     // a suitably high score as Candidates, i.e. points which the mapmaker will attempt
     // to make new map points out of.
     for(vector<ImageRef>::iterator i=lev.vMaxCorners.begin(); i!=lev.vMaxCorners.end(); i++)
     {
-      if(!lev.im.in_image_with_border(*i, 10))
-        continue;
+      if(!lev.im.in_image_with_border(*i, 2)) { //5)) { //10)) {
+         cout << "!lev.im.in_image_wih_border" << endl;
+         continue;
+      }
       double dSTScore = FindShiTomasiScoreAtPoint(lev.im, 3, *i);
       if(dSTScore > gvdCandidateMinSTScore)
       {
@@ -647,6 +597,7 @@ void KeyFrame::MakeKeyFrame_Rest()
         c.dSTScore = dSTScore;
         lev.vCandidates.push_back(c);
       }
+      cout << "lev.vCandidates.size: " << lev.vCandidates.size() << endl;
     }
 
   };
@@ -742,8 +693,5 @@ struct LevelHelpersFiller // Code which should be initialised on init goes here;
 };
 
 static LevelHelpersFiller foo;
-
-
-
 
 

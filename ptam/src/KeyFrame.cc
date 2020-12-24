@@ -128,7 +128,15 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 #if 1
    // Copy BasicImage &im to SDRAM's lev0_img_ptr
    // void * memcpy ( void * destination, const void * source, size_t num );   
-   memcpy(lev0_img_ptr, im.begin(), im.totalsize());
+   try {
+      if (lev0_img_ptr != NULL) {
+         memcpy(lev0_img_ptr, im.begin(), im.totalsize());
+      } else {
+         return;
+      }
+   } catch (exception& exp) {
+      cout << "Exception: " << exp.what() << endl;
+   }
    //printf("Copied im to lev0_img_ptr\n");
    //std::copy(im.begin(), im.totalsize(), lev0_img_ptr);
 #else   
@@ -286,15 +294,35 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    
       if (i == 0) {
          num = *(lev0_corners_num_ptr);
+         if (num > 307200) {
+            usleep(10000);
+            cout << "read lev0 corner number again, " << num << endl;
+            num = *(lev0_corners_num_ptr);
+         } 
          result = corners_pos_ptr;
       } else if (i == 1) {
          num = *(lev1_corners_num_ptr);
+         if (num > 76800) {
+            usleep(10000);
+            cout << "read lev1 corner number again, " << num << endl;
+            num = *(lev1_corners_num_ptr);
+         }
          result = corners_pos_ptr + *(lev0_corners_num_ptr); 
       } else if (i == 2) {
          num = *(lev2_corners_num_ptr);
+         if (num > 19200) {
+            usleep(10000);
+            cout << "read lev2 corner number again, " << num << endl;
+            num = *(lev2_corners_num_ptr);
+         }
          result = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr);
       } else if (i == 3) {
          num = *(lev3_corners_num_ptr);
+         if (num > 4800) {
+            usleep(10000);
+            cout << "read lev3 corner number again, " << num << endl;
+            num = *(lev3_corners_num_ptr);
+         }
          result = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr) + *(lev2_corners_num_ptr);
       } else {
          //   
@@ -330,29 +358,42 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       }
 #else 
       //usleep(10000);
+      try {
+         a = new unsigned int[num];
+      } catch (bad_alloc& bad) {
+         cout << "Not enough memory, num: " << num << endl;
+         return;
+      }
 
-      a = new unsigned int[num];
-      std::fill_n(a, num, 0);
-      std::copy(result, result+num, a);
+      if (a != NULL || result != NULL) {
+         std::fill_n(a, num, 0);
+         std::copy(result, result+num, a);
+      
+         ImageRef corner_pos;
+         unsigned int tmp = 0;
+         for (unsigned int el=0; el < num; el++) {
+            tmp = *(a + el); 
 
-      ImageRef corner_pos;
-      unsigned int tmp = 0;
-      for (unsigned int el=0; el < num; el++) {
-         tmp = *(a + el); 
-
-         corner_pos.y = (tmp >> 16) & 0x3FF;
-         corner_pos.x = tmp & 0x0000FFFF;
+            corner_pos.y = (tmp >> 16) & 0x3FF;
+            corner_pos.x = tmp & 0x0000FFFF;
  
-         if (i == 0 && (corner_pos.x > 640 || corner_pos.y > 480)) {
-            continue;
-         } else if (i == 1 && (corner_pos.x > 320 || corner_pos.y > 240)) {
-            continue;
-         } else if (i == 2 && (corner_pos.x > 160 || corner_pos.y > 120)) {
-            continue;
-         } else if (i == 3 && (corner_pos.x > 80 || corner_pos.y > 60)) {
-            continue;
+            if (i == 0 && (corner_pos.x > 640 || corner_pos.y > 480)) {
+               continue;
+            } else if (i == 1 && (corner_pos.x > 320 || corner_pos.y > 240)) {
+               continue;
+            } else if (i == 2 && (corner_pos.x > 160 || corner_pos.y > 120)) {
+               continue;
+            } else if (i == 3 && (corner_pos.x > 80 || corner_pos.y > 60)) {
+               continue;
+            }
+            lev.vCorners.push_back(corner_pos);
          }
-         lev.vCorners.push_back(corner_pos);
+       }
+       else {
+          // access mmap()ed area when failed array for corner result in heap 
+          return;
+       }
+
 /*
          if (corner_pos.x == 0 && corner_pos.y == 0) {
              // Do trigger for FPGA to capture output via SignalTap.
@@ -382,7 +423,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
             }
          }
 */
-      }
+      //}
 #endif
       //printf("lev[%d], cnNum-Reg: %d, cnSize-Vec: %d\n", i, num, lev.vCorners.size());//.*(number_corners[i]));
       //if (i != 0) {

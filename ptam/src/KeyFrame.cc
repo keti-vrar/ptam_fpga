@@ -59,6 +59,7 @@ static unsigned int prev_result = 0;
 static unsigned int cur_result = 0;
 
 int timercount = 0;
+static int mapOK = 0;
 //#define lev0_length 307200
 
 /*
@@ -121,467 +122,238 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
    }
    
    // First, copy out the image data to the pyramid's zero level.
-   //cout << "im.resize()" << endl;
    aLevels[0].im.resize(im.size());
 
    copy(im, aLevels[0].im);
-#if 1
-   // Copy BasicImage &im to SDRAM's lev0_img_ptr
-   // void * memcpy ( void * destination, const void * source, size_t num );   
-   try {
-      if (lev0_img_ptr != NULL) {
-         memcpy(lev0_img_ptr, im.begin(), im.totalsize());
-      } else {
-         return;
-      }
-   } catch (exception& exp) {
-      cout << "Exception: " << exp.what() << endl;
-   }
-   //printf("Copied im to lev0_img_ptr\n");
-   //std::copy(im.begin(), im.totalsize(), lev0_img_ptr);
-#else   
-   for (int y = 0; y < im.size().y; y++) {
-      for (int x = 0; x < im.size().x; x++) {
-         //pos.x = x; pos.y = y;
-         //*(lev0_img_ptr + (y*im.size().x+x)) = im[pos]; // assert unsigned char into volatile pointer
-         //*(lev0_img_ptr + (y * im.size().x + x)) = im[y][x]; 
-         //*(lev0_img_ptr + (y * im.size().x + x)) = im[y][x];
-         lev0_img_ptr.at<BasicImage<byte>>(y, x) = im[y][x]; 
-      }
-   }
-   cout << "copy im to mmap()'ed region" << endl;
-#endif
 
-   // Set the Status Register to give ownership of SDRAM to FPGA
-   // cout << "SET Status_REG" << endl;
+   if (mapOK == 0) { // SW mode
+        // Then, for each level...
+	for(int i=0; i<LEVELS; i++)
+	{
+		Level &lev = aLevels[i];
+		if(i!=0)
+		{  // .. make a half-size image from the previous level..
+			lev.im.resize(aLevels[i-1].im.size() / 2);
+			halfSample(aLevels[i-1].im, lev.im);
+		}
 
-   // FPGA reset everytime due to Design defect
-   //*(status_reg_ptr) = 0x80000000;
-   usleep(1000);
-   
-   *(status_reg_ptr) = 0x1; 
+		lev.vCorners.clear();
+		lev.vCandidates.clear();
+		lev.vMaxCorners.clear();
 
-   //setitimer(ITIMER_VIRTUAL, &timer, NULL);
-   //timercount = 0x1;
+		void (*pFASTFunc)(const CVD::BasicImage<CVD::byte> &, std::vector<CVD::ImageRef> &,int)=NULL;
+		
+		const ptam::PtamParamsConfig& pPars = PtamParameters::varparams();
+		pFASTFunc=&fast_corner_detect_9_nonmax;
+		if (pPars.FASTMethod=="FAST9")
+			pFASTFunc=&fast_corner_detect_9;
+		else if (pPars.FASTMethod=="FAST10")
+			pFASTFunc=&fast_corner_detect_10;
+		else if (pPars.FASTMethod=="FAST9_nonmax")
+			pFASTFunc=&fast_corner_detect_9_nonmax;
+		else if (pPars.FASTMethod=="AGAST12d")
+			pFASTFunc=&agast::agast7_12d::agast_corner_detect12d;
+		else if (pPars.FASTMethod=="OAST16")
+			pFASTFunc=&agast::oast9_16::oast_corner_detect16;
 
-   unsigned int status = 1;
-   //unsigned int * result_tri = NULL;
-   //unsigned int num_tri = 0;
-   ImageRef corner_pos2;
-   int waitCnt = 0;
+		if(i == 0)
+			pFASTFunc(lev.im, lev.vCorners, pPars.Thres_lvl0+thrs[i]);
+		if(i == 1)
+			pFASTFunc(lev.im, lev.vCorners, pPars.Thres_lvl1+thrs[i]);
+		if(i == 2)
+			pFASTFunc(lev.im, lev.vCorners, pPars.Thres_lvl2+thrs[i]);
+		if(i == 3)
+			pFASTFunc(lev.im, lev.vCorners, pPars.Thres_lvl3+thrs[i]);
 
-   while (true) { //(ros::ok()) {
-      //setitimer(ITIMER_VIRTUAL, &timer, NULL);
- 
-      if (waitCnt > 100) { 
-         *(status_reg_ptr) = 0x80000000;
-         usleep(1000);
-         *(status_reg_ptr) = 0x0;
-         break;
-      }
+		for (int j = 0; j < lev.vCorners.size(); j++) {
+			cout << "lev[" << i << "], num [" << j << "]" << lev.vCorners.at(j) << endl;
+		}
 
-      status = *(status_reg_ptr);      
-      if (status == 0x3) { 
-         //timercount = 0x0;
-         //cout << ".";
-         // Insert Trigger Signal when Corner Result is Zero.
-         //result_tri = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr) + *(lev2_corners_num_ptr);
-         //corner_pos2.y = (*(result_tri) >> 16) & 0x03FF;
-         //corner_pos2.x = *(result_tri) & 0x0000FFFF;
- 
-         //if (corner_pos2.x == 0 && corner_pos2.y == 0) {
-         //  *(status_reg_ptr) |= 0x10;
-         //  cout << "zero output found" << endl;
-         //  printf("addr: %p, result+el: 0x%x, x: %d, y: %d\n", result_tri, *(result_tri), corner_pos2.x, corner_pos2.y);
-           //*(status_reg_ptr) = 0x0;
-         //}
-         cout << "waitCnt: " << waitCnt << endl;
-         break;
-      }
-      printf("Reg: %d\r", status);
-      waitCnt++;
-      usleep(2000);
-   }
+		if (pPars.AdaptiveThrs)
+		{
+			buff = lev.vCorners.size()-pPars.AdaptiveThrsMult*pPars.MaxPatchesPerFrame/pow(2.0,i);
+			thrs[i] = thrs[i]+(buff>0)-(buff<0);
+		}
+		else
+			thrs[i]=0;
 
-   // Clear the Status Register to get ownership of SDRAM 
-   // cout << "CLEAR Status_REG" << endl;
-   *(status_reg_ptr) = 0x0; 
-
-   usleep(10000);
-
-   /*cur_result = *(corners_pos_ptr);
-   if (cur_result == prev_result) {
-      // data not updated
-      cout << "o";
-   } else {
-      // new data incoming!
-      cout << "x";
-      //break;
-   }
-   prev_result = cur_result;*/
-
-/*
-   // Insert Trigger Signal when Corner Result is Zero.
-   unsigned int * result_tri = NULL;
-   unsigned int num_tri = 0;
-
-   result_tri = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr) + *(lev2_corners_num_ptr);
-   //num_tri = *(lev3_corners_num_ptr);
-
-   ImageRef corner_pos2;
-   //for (unsigned int el = 0; el < num_tri; el++) {
-   corner_pos2.y = (*(result_tri) >> 16) & 0x03FF;
-   corner_pos2.x = *(result_tri) & 0x0000FFFF;
-       
-   if (corner_pos2.x == 0 && corner_pos2.y == 0) {
-      // Do trigger for FPGA to capture output via SignalTap.
-      *(status_reg_ptr) |= 0x10;
-      cout << "zero output found" << endl;
-      printf("addr: %p, result+el: 0x%x, x: %d, y: %d\n", result_tri, *(result_tri), corner_pos2.x, corner_pos2.y);
-      *(status_reg_ptr) = 0x0;
-   }
-*/   
-
-   for (int i = 0; i < LEVELS; i++) // To handle SBI into Keyframe
-   {
-      Level &lev = aLevels[i];      
-
-      if (i != 0) {
-         lev.im.resize(aLevels[i-1].im.size() / 2); // image resize
-#if 0
-         for (int y=0; y< lev.im.size().y; y++) {
-            for (int x=0; x< lev.im.size().x; x++) {
-               pos.x = x; pos.y = y;
-               if ( i == 1) {
-                  lev.im[pos] = *(lev1_img_ptr + (y*lev.im.size().x+x));
-               } else if ( i == 2) {
-                  lev.im[pos] = *(lev2_img_ptr + (y*lev.im.size().x+x));
-               } else if ( i == 3) {
-                  lev.im[pos] = *(lev3_img_ptr + (y*lev.im.size().x+x));
-               } 
-//               else if ( i == 4) {
-//                lev.im[pos] = *(lev4_image_base + (y*lev.im.size().x+x));
-//             }
+		unsigned int v=0;
+		lev.vCornerRowLUT.clear();
+		for(int y=0; y<lev.im.size().y; y++)
+		{
+			while(v < lev.vCorners.size() && y > lev.vCorners[v].y)
+				v++;
+			lev.vCornerRowLUT.push_back(v);
+		}
+	}; // end of for-loop
+   } else { // FPGA mode
+        try {
+           if (lev0_img_ptr != NULL) {
+              memcpy(lev0_img_ptr, im.begin(), im.totalsize());
+            } else {
+              return;
             }
-         }
-#else
-        // copy(BasicImage<byte>(levels_image[i], lev.im.size()), lev.im);
-        // construct unsigned char* to BasicImage object
-        // CVD::BasicImage<CVD::byte> img_sdram((CVD::byte *)lev0_img_ptr, CVD::ImageRef(lev.im.width, lev.im.height));
-        if (i == 1) { 
-           CVD::copy(CVD::BasicImage<CVD::byte>(lev1_img_ptr, lev.im.size()), lev.im);
-        } else if (i == 2) {
-           CVD::copy(CVD::BasicImage<CVD::byte>(lev2_img_ptr, lev.im.size()), lev.im);
-        } else if (i == 3) {
-           CVD::copy(CVD::BasicImage<CVD::byte>(lev3_img_ptr, lev.im.size()), lev.im);
+        } catch (exception& exp) {
+           cout << "Exception: " << exp.what() << endl;
         }
-#endif
-      }
-      //if (i == 4) { // Don't process since lev.4 is requird only for SBI input.
-         //printf("small image copied\n"); 
-      //   break;
-      //}
-      //ros::Duration(0, 1000000).sleep(); // delay for 1ms
+      
+        usleep(1000);
+        *(status_reg_ptr) = 0x1;
+
+        unsigned int status = 1;
+        int waitCnt = 0;
+        while (true) { 
+           if (waitCnt > 100) {
+              *(status_reg_ptr) = 0x80000000;
+              usleep(1000);
+              *(status_reg_ptr) = 0x0;
+              break;
+           }
+           status = *(status_reg_ptr);
+           if (status == 0x3) {
+              cout << "waitCnt: " << waitCnt << endl;
+              break;
+           }
+           printf("Reg: %d\r", status);
+           waitCnt++;
+           usleep(2000);
+        }
+
+        *(status_reg_ptr) = 0x0;
+        usleep(10000);
      
-      lev.vCorners.clear();
-      lev.vCandidates.clear();
-      lev.vMaxCorners.clear();
-    
-      //usleep(1000);
-
-      unsigned int num = 0;   
-      unsigned int * result = NULL; 
-   
-      if (i == 0) {
-         num = *(lev0_corners_num_ptr);
-         if (num > 307200) {
-            usleep(10000);
-            cout << "read lev0 corner number again, " << num << endl;
-            num = *(lev0_corners_num_ptr);
-         } 
-         result = corners_pos_ptr;
-      } else if (i == 1) {
-         num = *(lev1_corners_num_ptr);
-         if (num > 76800) {
-            usleep(10000);
-            cout << "read lev1 corner number again, " << num << endl;
-            num = *(lev1_corners_num_ptr);
-         }
-         result = corners_pos_ptr + *(lev0_corners_num_ptr); 
-      } else if (i == 2) {
-         num = *(lev2_corners_num_ptr);
-         if (num > 19200) {
-            usleep(10000);
-            cout << "read lev2 corner number again, " << num << endl;
-            num = *(lev2_corners_num_ptr);
-         }
-         result = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr);
-      } else if (i == 3) {
-         num = *(lev3_corners_num_ptr);
-         if (num > 4800) {
-            usleep(10000);
-            cout << "read lev3 corner number again, " << num << endl;
-            num = *(lev3_corners_num_ptr);
-         }
-         result = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr) + *(lev2_corners_num_ptr);
-      } else {
-         //   
-      }
-      //cout << "lev: " << i << ", cn-Num: " << num << ", result_addr " << result << endl;
-      cout << "lev: " << i << ", NumOfCorner: " << num << ", AddrOfCorner: " << result << endl;
-#if 0
-      //vector<ImageRef> levCorners;
-      //levCorners.resize(num); // testing for heap corruption
-      int zeroCnt = 0;
-      ImageRef corner_pos;
-      for (unsigned int el = 0; el < num; el++) {
-         // Upper 2-bytes mean X-position, Lower 2-bytes mean Y-position.
-         corner_pos.y = (*(result + el) >> 16) & 0x03FF;
-         corner_pos.x = *(result + el) & 0x0000FFFF;
-         //levCorners.push_back(corner_pos);
-         lev.vCorners.push_back(corner_pos);
-         //printf("addr: %p, result+el: 0x%x, x: %d, y: %d\n", result+el, *(result + el), corner_pos.x, corner_pos.y);
-         //cout << "lev: " << i << ", cn-Num: " << num << endl;
-      
-         if (corner_pos.x == 0 && corner_pos.y == 0) {
-         //   zeroCnt++;
-         //}
-         //if (zeroCnt == 5) {
-            // Do trigger for FPGA to capture output via SignalTap.
-            *(status_reg_ptr) |= 0x10;
-            cout << "zero output found" << endl;
-            printf("addr: %p, result+el: 0x%x, x: %d, y: %d\n", result+el, *(result     + el), corner_pos.x, corner_pos.y);
-            cout << "lev: " << i << ", cn-Num: " << num << endl;
-
-            *(status_reg_ptr) = 0x0;
-         }
-      }
-#else 
-      //usleep(10000);
-      try {
-         a = new unsigned int[num];
-      } catch (bad_alloc& bad) {
-         cout << "Not enough memory, num: " << num << endl;
-         return;
-      }
-
-      if (a != NULL || result != NULL) {
-         std::fill_n(a, num, 0);
-         std::copy(result, result+num, a);
-      
-         ImageRef corner_pos;
-         unsigned int tmp = 0;
-         for (unsigned int el=0; el < num; el++) {
-            tmp = *(a + el); 
-
-            corner_pos.y = (tmp >> 16) & 0x3FF;
-            corner_pos.x = tmp & 0x0000FFFF;
+        for (int i = 0; i < LEVELS; i++) // To handle SBI into Keyframe
+        {
+           Level &lev = aLevels[i];
  
-            if (i == 0 && (corner_pos.x > 640 || corner_pos.y > 480)) {
-               continue;
-            } else if (i == 1 && (corner_pos.x > 320 || corner_pos.y > 240)) {
-               continue;
-            } else if (i == 2 && (corner_pos.x > 160 || corner_pos.y > 120)) {
-               continue;
-            } else if (i == 3 && (corner_pos.x > 80 || corner_pos.y > 60)) {
-               continue;
-            }
-            lev.vCorners.push_back(corner_pos);
-         }
-       }
-       else {
-          // access mmap()ed area when failed array for corner result in heap 
-          return;
-       }
+           if (i != 0) {
+              lev.im.resize(aLevels[i-1].im.size() / 2); // image resize
 
-/*
-         if (corner_pos.x == 0 && corner_pos.y == 0) {
-             // Do trigger for FPGA to capture output via SignalTap.
-             *(status_reg_ptr) |= 0x10;
-             
-             printf("CornerOfRaw: 0x%x, x: %d, y: %d\n", tmp, corner_pos.x, corner_pos.y);
-             cout << "lev: " << i << ", CornerSize: " << num << "<---Zero Corner detected " << endl;
+              if (i == 1) {
+                 CVD::copy(CVD::BasicImage<CVD::byte>(lev1_img_ptr, lev.im.size()), lev.im);
+              } else if (i == 2) {
+                 CVD::copy(CVD::BasicImage<CVD::byte>(lev2_img_ptr, lev.im.size()), lev.im);
+              } else if (i == 3) {
+                 CVD::copy(CVD::BasicImage<CVD::byte>(lev3_img_ptr, lev.im.size()), lev.im);
+              }
+           }
+
+           lev.vCorners.clear();
+           lev.vCandidates.clear();
+           lev.vMaxCorners.clear();
  
-             *(status_reg_ptr) = 0x0;
-         } 
-        
-         if (i == 0) { 
-            if (corner_pos.x > 640 || corner_pos.y > 480) {
-                cout << "ERROR !!! lev: " << i << ", [" << el << "/" << num << "] has x, y: " << corner_pos.x << ", " << corner_pos.y << endl;
-            }
-         } else if (i == 1) {
-            if (corner_pos.x > 320 || corner_pos.y > 240) {
-               cout << "ERROR !!! lev: " << i << ", [" << el << "/" << num << "] has x, y: " << corner_pos.x << ", " << corner_pos.y << endl;
-            }
-         } else if (i == 2) {
-            if (corner_pos.x > 160 || corner_pos.y > 120) {
-               cout << "ERROR !!! lev: " << i << ", [" << el << "/" << num << "] has x, y: " << corner_pos.x << ", " << corner_pos.y << endl;
-            }  
-         } else if (i == 3) {
-            if (corner_pos.x > 80 || corner_pos.y > 60) {
-               cout << "ERROR !!! lev: " << i << ", [" << el << "/" << num << "] has x, y: " << corner_pos.x << ", " << corner_pos.y << endl;
-            }
-         }
-*/
-      //}
-#endif
-      //printf("lev[%d], cnNum-Reg: %d, cnSize-Vec: %d\n", i, num, lev.vCorners.size());//.*(number_corners[i]));
-      //if (i != 0) {
-      /*for (int cn = 0; cn < lev.vCorners.size(); cn++) {
-         cout << "lev[" << i << "]" << "[" << cn << "/" << lev.vCorners.size() << "] " << lev.vCorners.at(cn) << endl; 
-      } */
-      //}
-      // Assign results
-      //cout << "lev[" << i << "] " << lev.vCorners.size() << endl;
-      //cout << lev.vCorners.at(0) << lev.vCorners.at(1) << lev.vCorners.at(2) << lev.vCorners.at(3) << endl;
-      int same = 0;
-      if (num == lev.vCorners.size()) {
-         same = 1;
-      } 
-      cout << "CN-NumReg: " << num << ", CN-Vec: " << lev.vCorners.size() << "?=" << same << endl;
-
+           unsigned int num = 0;
+           unsigned int * result = NULL;
  
-      const ptam::PtamParamsConfig& pPars = PtamParameters::varparams();
-      if (pPars.AdaptiveThrs) {
-         buff = lev.vCorners.size()-pPars.AdaptiveThrsMult*pPars.MaxPatchesPerFrame/pow(2.0,i);
-         thrs[i] = thrs[i]+(buff>0)-(buff<0);
-      }
-      else
-         thrs[i]=0;
+           if (i == 0) {
+              num = *(lev0_corners_num_ptr);
+              if (num > 307200) {
+                 usleep(10000);
+                 cout << "read lev0 corner number again, " << num << endl;
+                 num = *(lev0_corners_num_ptr);
+              } 
+              result = corners_pos_ptr;
+           } else if (i == 1) {
+              num = *(lev1_corners_num_ptr);
+              if (num > 76800) {
+                  usleep(10000);
+                  cout << "read lev1 corner number again, " << num << endl;
+                  num = *(lev1_corners_num_ptr);
+              }
+              result = corners_pos_ptr + *(lev0_corners_num_ptr);
+           } else if (i == 2) {
+              num = *(lev2_corners_num_ptr);
+              if (num > 19200) {
+                 usleep(10000);
+                 cout << "read lev2 corner number again, " << num << endl;
+                 num = *(lev2_corners_num_ptr);
+              }
+              result = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr);
+           } else if (i == 3) {
+              num = *(lev3_corners_num_ptr);
+              if (num > 4800) {
+                 usleep(10000);
+                 cout << "read lev3 corner number again, " << num << endl;
+                 num = *(lev3_corners_num_ptr);
+              }
+              result = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr) + *(lev2_corners_num_ptr);
+           } else {
+              //   
+           }
+           cout << "lev: " << i << ", NumOfCorner: " << num << ", AddrOfCorner: " << result << endl;
 
-      // Generate row look-up-table for the FAST corner points: this speeds up
-      // finding close-by corner points later on.
-      unsigned int v=0;
-      lev.vCornerRowLUT.clear();
-#if 0
-      for(int y=0; y<lev.im.size().y; y++)
-      {
-         while(v < lev.vCorners.size() && y > lev.vCorners[v].y)
-            v++;
-            lev.vCornerRowLUT.push_back(v);
-      }
-#else
-      for(int y=0; y<lev.im.size().y; y=y+2)
-      { 
-         while (v < lev.vCorners.size() && y > lev.vCorners[v].y)
-           v++;
-
-         lev.vCornerRowLUT.push_back(v);
-         lev.vCornerRowLUT.push_back(v);
-      }
-#endif
-      delete [] a;
-      a = NULL;
-
-   }; //end of for-loop
-
-}  // end of MakeKeyFrame_Lite()
-
-
-#if 0 
-   unsigned int status = 0;
-   while(1) // polling...
-   {
-      status = *(status_register);
-      //printf("Waiting for FPGA completed... Checking Status: %d\r", status); 
-      //printf(".");
-
-      // If status is 0, GET the halfsampled image data and corner detection result
-      if (status != 1)
-      {
-         //printf("status : %d, frame_cnt : %d\n", status, frame_cnt);
-         //printf("\n");
-
-         for (int i = 0; i < LEVELS+1; i++) // To handle SBI into Keyframe
-         {
-            Level &lev = aLevels[i];
-
-            if (i != 0)
-            { 
-               lev.im.resize(aLevels[i-1].im.size() / 2);       // image resize
-
-               for (int y=0; y< lev.im.size().y; y++) {
-                  for (int x=0; x< lev.im.size().x; x++) {
-                     pos.x = x; pos.y = y;
-                     if ( i == 1) {
-                        lev.im[pos] = *(lev1_image_base + (y*lev.im.size().x+x));
-                     } else if ( i == 2) {
-                        lev.im[pos] = *(lev2_image_base + (y*lev.im.size().x+x));
-                     } else if ( i == 3) {
-                        lev.im[pos] = *(lev3_image_base + (y*lev.im.size().x+x));
-                     } else if ( i == 4) {
-                        lev.im[pos] = *(lev4_image_base + (y*lev.im.size().x+x));
-                     }
-                  }
-               }
-
-            }
-            if (i == 4) { // Don't process since lev.4 is requird only for SBI input.
-               //printf("small image copied\n"); 
-               break;
-            }
-
-            //gettimeofday(&t0, NULL);
-	    lev.vCorners.clear();
-            lev.vCandidates.clear();
-            lev.vMaxCorners.clear();
-
-            volatile unsigned int* result = addr_corners[i];
-            vector<ImageRef> levCorners;
-            for (int el = 0; el < *(number_corners[i]); el++) {
-               // Upper 2-bytes mean X-position, Lower 2-bytes mean Y-position.
-               ImageRef corner_pos;
-               corner_pos.x = *(result + el) >> 16;
-               corner_pos.y = *(result + el) & 0x0000FFFF;
-               levCorners.push_back(corner_pos);
-               //printf("result+el: 0x%x, x: 0x%x, y: 0x%x\n", *(result + el), corner_pos.x, corner_pos.y);
-            }
-            printf("number_corners[%d]'size: %d\n", i, *(number_corners[i]));
+           try {
+              a = new unsigned int[num];
+           } catch (bad_alloc& bad) {
+              cout << "Not enough memory, num: " << num << endl;
+              return;
+           }
  
-            // Assign results
-            lev.vCorners = levCorners;
-            // printf("[F %d][LEVEL %d] Corner detection results size : %d\n", frame_cnt, i, lev.vCorners.size());
-            //gettimeofday(&t1, NULL);
-            //elapsed = timediff_msec(t0, t1);
-            //printf("Asserting Corners' duration: %f ms\n", elapsed);
-                        
-            const ptam::PtamParamsConfig& pPars = PtamParameters::varparams();
-            if (pPars.AdaptiveThrs)
-            {
-               buff = lev.vCorners.size()-pPars.AdaptiveThrsMult*pPars.MaxPatchesPerFrame/pow(2.0,i);
-               thrs[i] = thrs[i]+(buff>0)-(buff<0);
-            }
-            else 
-               thrs[i]=0;
-
+           if (a != NULL || result != NULL) {
+              std::fill_n(a, num, 0);
+              std::copy(result, result+num, a);
+ 
+              ImageRef corner_pos;
+              unsigned int tmp = 0;
+              for (unsigned int el=0; el < num; el++) {
+                 tmp = *(a + el);
+ 
+                 corner_pos.y = (tmp >> 16) & 0x3FF;
+                 corner_pos.x = tmp & 0x0000FFFF;
+ 
+                 if (i == 0 && (corner_pos.x > 640 || corner_pos.y > 480)) {
+                    continue;
+                 } else if (i == 1 && (corner_pos.x > 320 || corner_pos.y > 240)) {
+                    continue;
+                 } else if (i == 2 && (corner_pos.x > 160 || corner_pos.y > 120)) {
+                    continue;
+                 } else if (i == 3 && (corner_pos.x > 80 || corner_pos.y > 60)) {
+                    continue;
+                 }
+                 lev.vCorners.push_back(corner_pos);
+              }
+           }
+           else {
+              // access mmap()ed area when failed array for corner result in heap 
+              return;
+           }
+         
+           int same = 0;
+           if (num == lev.vCorners.size()) {
+               same = 1;
+           }
+           cout << "CN-NumReg: " << num << ", CN-Vec: " << lev.vCorners.size() << "?=" << same << endl;
+ 
+           const ptam::PtamParamsConfig& pPars = PtamParameters::varparams();
+           if (pPars.AdaptiveThrs) {
+              buff = lev.vCorners.size()-pPars.AdaptiveThrsMult*pPars.MaxPatchesPerFrame/pow(2.0,i);
+              thrs[i] = thrs[i]+(buff>0)-(buff<0);
+           }
+           else
+              thrs[i]=0;
+ 
            // Generate row look-up-table for the FAST corner points: this speeds up
            // finding close-by corner points later on.
-           //gettimeofday(&t2, NULL);
-
            unsigned int v=0;
            lev.vCornerRowLUT.clear();
-           for(int y=0; y<lev.im.size().y; y++)
+           for(int y=0; y<lev.im.size().y; y=y+2)
            {
-              while(v < lev.vCorners.size() && y > lev.vCorners[v].y)
-                 v++;
+              while (v < lev.vCorners.size() && y > lev.vCorners[v].y)
+                v++;
+
+              lev.vCornerRowLUT.push_back(v);
               lev.vCornerRowLUT.push_back(v);
            }
-           //printf("1st stage done\n");
-           //gettimeofday(&t3, NULL);
-           //elapsed = timediff_msec(t2, t3);
-           //printf("Asserting RowLUT's duration: %f ms\n", elapsed); 
-         } //end of for-loop 
-      //break;
-      } // end of status checking if (status != 1)
-      break; 
-   } // end of while loop 
-  *(status_register) = 0x0;
-  //munmap(hps_virtual_base, SDRAM_SPAN);
-  //munmap(lw_axi_h2f_base, AXI_LW_MEM_SPAN);
-  cout << "MakeKeyFrame_Lite---" << endl;
-  // } minho
-}
-#endif
+     
+           delete [] a;
+           a = NULL;
+     
+      }; // End of for-loop
+
+   } // End of Else
+
+} // end of MakeKeyframe_Lite()
+
 
 void KeyFrame::MakeKeyFrame_Rest()
 {

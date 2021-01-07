@@ -59,7 +59,8 @@ static unsigned int prev_result = 0;
 static unsigned int cur_result = 0;
 
 int timercount = 0;
-static int mapOK = 0;
+extern int mapOK;
+extern int badCorner;
 //#define lev0_length 307200
 
 /*
@@ -165,9 +166,9 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 		if(i == 3)
 			pFASTFunc(lev.im, lev.vCorners, pPars.Thres_lvl3+thrs[i]);
 
-		for (int j = 0; j < lev.vCorners.size(); j++) {
+	/*	for (int j = 0; j < lev.vCorners.size(); j++) {
 			cout << "lev[" << i << "], num [" << j << "]" << lev.vCorners.at(j) << endl;
-		}
+		} */
 
 		if (pPars.AdaptiveThrs)
 		{
@@ -186,6 +187,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 			lev.vCornerRowLUT.push_back(v);
 		}
 	}; // end of for-loop
+
    } else { // FPGA mode
         try {
            if (lev0_img_ptr != NULL) {
@@ -202,8 +204,10 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
         unsigned int status = 1;
         int waitCnt = 0;
+        unsigned int corNum = 0;
+
         while (true) { 
-           if (waitCnt > 100) {
+           if (waitCnt > 5) {
               *(status_reg_ptr) = 0x80000000;
               usleep(1000);
               *(status_reg_ptr) = 0x0;
@@ -211,6 +215,24 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
            }
            status = *(status_reg_ptr);
            if (status == 0x3) {
+              // TODO
+              // Add Trigger when detected invalid corner number
+              usleep(500);
+               
+              corNum = *(lev0_corners_num_ptr);
+              if (corNum > 34133) {
+                 // Trigger the signal tap
+                 *(status_reg_ptr) |= 0x10;
+                 cout << "SignalTap Triggered" << endl;
+                 *(status_reg_ptr) = 0x0;
+                 
+                 badCorner = 0x1;
+                 cout << "return from MakeKeyFrame_Lite" << endl;
+                 *(status_reg_ptr) = 0x80000000;
+                 usleep(1000);
+                 *(status_reg_ptr) = 0x0;
+                 return;
+              } 
               cout << "waitCnt: " << waitCnt << endl;
               break;
            }
@@ -248,38 +270,47 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
            if (i == 0) {
               num = *(lev0_corners_num_ptr);
               if (num > 307200) {
-                 usleep(10000);
-                 cout << "read lev0 corner number again, " << num << endl;
-                 num = *(lev0_corners_num_ptr);
+                 //usleep(10000);
+                 cout << "invalid (lev0)corner number detected : " << num << endl;
+                 //num = *(lev0_corners_num_ptr);
+                 badCorner = 0x1;
+                 return;
               } 
               result = corners_pos_ptr;
            } else if (i == 1) {
               num = *(lev1_corners_num_ptr);
               if (num > 76800) {
-                  usleep(10000);
-                  cout << "read lev1 corner number again, " << num << endl;
-                  num = *(lev1_corners_num_ptr);
+                  //usleep(10000);
+                  cout << "invalid (lev1)corner number detected : " << num << endl;
+                  //num = *(lev1_corners_num_ptr);
+                  badCorner = 0x1;
+                  return;
               }
               result = corners_pos_ptr + *(lev0_corners_num_ptr);
            } else if (i == 2) {
               num = *(lev2_corners_num_ptr);
               if (num > 19200) {
-                 usleep(10000);
-                 cout << "read lev2 corner number again, " << num << endl;
-                 num = *(lev2_corners_num_ptr);
+                 //usleep(10000);
+                 cout << "invalid (lev2)corner number detected : " << num << endl;
+                 //num = *(lev2_corners_num_ptr);
+                 badCorner = 0x1;
+                 return;
               }
               result = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr);
            } else if (i == 3) {
               num = *(lev3_corners_num_ptr);
               if (num > 4800) {
-                 usleep(10000);
-                 cout << "read lev3 corner number again, " << num << endl;
-                 num = *(lev3_corners_num_ptr);
+                 //usleep(10000);
+                 cout << "invalid (lev3)corner number detected : " << num << endl;
+                 //num = *(lev3_corners_num_ptr);
+                 badCorner = 0x1;
+                 return;
               }
               result = corners_pos_ptr + *(lev0_corners_num_ptr) + *(lev1_corners_num_ptr) + *(lev2_corners_num_ptr);
            } else {
               //   
            }
+           badCorner = 0x0;
            cout << "lev: " << i << ", NumOfCorner: " << num << ", AddrOfCorner: " << result << endl;
 
            try {
@@ -410,7 +441,7 @@ void KeyFrame::MakeKeyFrame_Rest()
         c.dSTScore = dSTScore;
         lev.vCandidates.push_back(c);
       }
-      cout << "lev.vCandidates.size: " << lev.vCandidates.size() << endl;
+      //cout << "lev.vCandidates.size: " << lev.vCandidates.size() << endl;
     }
 
   };

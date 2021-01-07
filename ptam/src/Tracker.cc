@@ -28,6 +28,9 @@ using namespace CVD;
 using namespace std;
 using namespace GVars3;
 
+int mapOK = 0;
+extern int badCorner;
+
 // The constructor mostly sets up interal reference variables
 // to the other classes..
 Tracker::Tracker(ImageRef irVideoSize, const ATANCamera &c, Map &m, MapMaker &mm) : 
@@ -129,6 +132,10 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
 
   //gettimeofday(&t0, NULL);
   mCurrentKF->MakeKeyFrame_Lite(imFrame);
+  if (badCorner == 0x1) {
+     cout << "return from TrackFrame" << endl;
+     return;
+  }
   //gettimeofday(&t1, NULL);
   //elapsed = timediff(t0, t1);
   //printf("MakeKeyFrame_Lite' duration: %f ms\n", elapsed);
@@ -172,6 +179,9 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
   // Decide what to do - if there is a map, try to track the map ...
   if(mMap.IsGood())
   {
+
+    mapOK = 1;
+
     if(mnLostFrames < 3)  // .. but only if we're not lost!
     {
       if(mbUseSBIInit)
@@ -225,7 +235,9 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
   else // If there is no map, try to make one.
     //Weiss{
   {
-    
+   
+    mapOK = 0;
+ 
     int level = PtamParameters::fixparams().InitLevel;
     const ptam::PtamParamsConfig& pPars = PtamParameters::varparams();
     if (pPars.AutoInit)

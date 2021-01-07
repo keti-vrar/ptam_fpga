@@ -21,6 +21,7 @@ using namespace CVD;
 using namespace std;
 using namespace GVars3;
 
+int badCorner = 0;
 
 System::System() :
       nh_("vslam"), image_nh_(""), first_frame_(true), mpMap(NULL)
@@ -154,6 +155,13 @@ void System::imageCallback(const sensor_msgs::ImageConstPtr & img)
   }
 
   mpTracker->TrackFrame(img_bw_, tracker_draw, imu_orientation);
+  
+  // Check the return val of TrackFrame, Return if failed.
+  if (badCorner) {
+     cout << "return from imageCallback" << endl;
+     badCorner = 0x0;
+     return;
+  }  
 
   publishPoseAndInfo(img->header);
 

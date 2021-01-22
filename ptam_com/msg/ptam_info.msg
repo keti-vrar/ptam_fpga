@@ -5,3 +5,6 @@ int32       trackingQuality
 bool        mapQuality
 string      mapViewerMessage
 string      trackerMessage
+bool        drawGrid
+bool        drawTrails
+

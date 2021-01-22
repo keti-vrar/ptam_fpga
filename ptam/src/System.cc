@@ -309,7 +309,7 @@ void System::publishPoseAndInfo(const std_msgs::Header & header)
     scale = 1;
   }
 
-  if (mpTracker->getTrackingQuality() && mpMap->IsGood())
+  //if (mpTracker->getTrackingQuality() && mpMap->IsGood())
   {
     TooN::SE3<double> pose = mpTracker->GetCurrentPose();
     //world in the camera frame
@@ -384,6 +384,12 @@ void System::publishPoseAndInfo(const std_msgs::Header & header)
         fps = 200;
       last_time = header.stamp.toSec();
 
+      /* adding trail info */
+      CVD::Image<TooN::Vector<2> > & grid = mpTracker->ComputeGrid();
+      std::list<Trail> & trails = mpTracker->getTrails();
+      bool dGrid = mpTracker->getTrailTrackingComplete();
+      bool dTrails = mpTracker->getTrailTrackingStarted(); 
+
       msg_info->header = header;
       msg_info->fps = fps;
       msg_info->mapQuality = mpMap->bGood;
@@ -391,6 +397,8 @@ void System::publishPoseAndInfo(const std_msgs::Header & header)
       msg_info->trackerMessage = mpTracker->GetMessageForUser();
       //      msg_info->mapViewerMessage = mpMapViewer->GetMessageForUser();
       msg_info->keyframes = mpMap->vpKeyFrames.size();
+      msg_info->drawGrid = dGrid;
+      msg_info->drawTrails = dTrails;
       pub_info_.publish(msg_info);
     }
   };
@@ -431,11 +439,13 @@ void System::publishPreviewImage(CVD::Image<CVD::byte> & img, const std_msgs::He
     {
       for (int i = 0; i < dim0; i++)
       {
+        // vertical line drawing
         for (int j = 0; j < dim1 - 1; j++)
           cvLine( ocv_img, cvPoint(grid[i][j][0]/2, grid[i][j][1]/2), cvPoint(grid[i][j + 1][0]/2, grid[i][j + 1][1]/2),
                   CV_RGB(50, 50, 50)
           );
-
+        
+        // horizontal line drawing
         for (int j = 0; j < dim1 - 1; j++)
           cvLine(ocv_img, cvPoint(grid[j][i][0]/2, grid[j][i][1]/2), cvPoint(grid[j + 1][i][0]/2, grid[j + 1][i][1]/2),
                  CV_RGB(50, 50, 50)

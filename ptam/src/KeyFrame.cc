@@ -204,10 +204,14 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
         unsigned int status = 1;
         int waitCnt = 0;
-        unsigned int corNum = 0;
+        unsigned int corNum_lv0 = 0;
+        unsigned int corNum_lv1 = 0;
+        unsigned int corNum_lv2 = 0;
+        unsigned int corNum_lv3 = 0;
+        unsigned int corner_result = 0;
 
         while (true) { 
-           if (waitCnt > 5) {
+           if (waitCnt > 4000) { //5) {
               *(status_reg_ptr) = 0x80000000;
               usleep(1000);
               *(status_reg_ptr) = 0x0;
@@ -217,13 +221,22 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
            if (status == 0x3) {
               // TODO
               // Add Trigger when detected invalid corner number
-              usleep(500);
+              //usleep(500);
                
-              corNum = *(lev0_corners_num_ptr);
-              if (corNum > 34133) {
+              corNum_lv0 = *(lev0_corners_num_ptr);
+              if (corNum_lv0 > 34133) {
                  // Trigger the signal tap
+                 corNum_lv1 = *(lev1_corners_num_ptr);
+                 corNum_lv2 = *(lev2_corners_num_ptr);
+                 corNum_lv3 = *(lev3_corners_num_ptr);
+                 corner_result = *(corners_pos_ptr);
+
                  *(status_reg_ptr) |= 0x10;
-                 cout << "SignalTap Triggered" << endl;
+
+                 cout << "<<< SignalTap Triggered >>>" << endl;
+                 cout << "corNum_lv0: " << corNum_lv0 << ", corNum_lv1: " << corNum_lv1 << ", corNum_lv2: " << corNum_lv2 << ", corNum_lv3: " << corNum_lv3 << endl;
+                 cout << "corner_result: " << corner_result << endl;
+
                  *(status_reg_ptr) = 0x0;
                  
                  badCorner = 0x1;
@@ -238,7 +251,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
            }
            printf("Reg: %d\r", status);
            waitCnt++;
-           usleep(2000);
+           //usleep(2000);
         }
 
         *(status_reg_ptr) = 0x0;

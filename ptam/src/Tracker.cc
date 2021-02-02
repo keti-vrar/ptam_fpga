@@ -481,7 +481,7 @@ void Tracker::TrackForInitialMap()
     int nGoodTrails = TrailTracking_Advance();  // This call actually tracks the trails
     if(nGoodTrails < 10) // if most trails have been wiped out, no point continuing.
     {
-      cout << "nGoodTrails < 10" << endl;
+      //cout << "nGoodTrails < 10" << endl;
       Reset();
       return;
     }
@@ -563,7 +563,7 @@ void Tracker::TrackForInitialMap()
 // The current frame is to be the first keyframe!
 void Tracker::TrailTracking_Start()
 {
-  cout << "TrailTracking_Start()+++" << endl;
+  //cout << "TrailTracking_Start()+++" << endl;
 
   mCurrentKF->MakeKeyFrame_Rest();  // This populates the Candidates list, which is Shi-Tomasi thresholded.
 
@@ -598,15 +598,15 @@ void Tracker::TrailTracking_Start()
   mPreviousFrameKF.reset(new KeyFrame);
   *mPreviousFrameKF = *mFirstKF;  // Always store the previous frame so married-matching can work.
 
-  cout << "mlTrails'size: " << mlTrails.size() << endl;
-  cout << "TrailTracking_Start()---" << endl;
+  //cout << "mlTrails'size: " << mlTrails.size() << endl;
+  //cout << "TrailTracking_Start()---" << endl;
 
 }
 
 // Steady-state trail tracking: Advance from the previous frame, remove duds.
 int Tracker::TrailTracking_Advance()
 {
-  cout << "TrailTracking_Advance()+++" << endl;
+  //cout << "TrailTracking_Advance()+++" << endl;
 
   int nGoodTrails = 0;
   if(mbDraw)
@@ -634,7 +634,7 @@ int Tracker::TrailTracking_Advance()
     ImageRef irStart = trail.irCurrentPos;
     ImageRef irEnd = irStart;
     bool bFound = trail.mPatch.FindPatch(irEnd, lCurrentFrame.im, 10, lCurrentFrame.vCorners);
-    cout << "bFound-1: " << bFound << endl;
+    //cout << "bFound-1: " << bFound << endl;
 
     if(bFound)
     {
@@ -642,19 +642,19 @@ int Tracker::TrailTracking_Advance()
       BackwardsPatch.SampleFromImage(irEnd, lCurrentFrame.im);
       ImageRef irBackWardsFound = irEnd;
       bFound = BackwardsPatch.FindPatch(irBackWardsFound, lPreviousFrame.im, 10, lPreviousFrame.vCorners);
-      cout << "bFound-2: " << bFound << endl;
+      //cout << "bFound-2: " << bFound << endl;
 
       if((irBackWardsFound - irStart).mag_squared() > 2)
       {
         // this trail will be deleted
         bFound = false;
-        cout << "bFound-3" << endl;
+        //cout << "bFound-3" << endl;
       }
       else
       {
         trail.irCurrentPos = irEnd;
         nGoodTrails++;
-        cout << "nGoodTrails++" << endl;
+        //cout << "nGoodTrails++" << endl;
       }
     }
     if(mbDraw)
@@ -678,7 +678,7 @@ int Tracker::TrailTracking_Advance()
 
   mPreviousFrameKF = mCurrentKF;
 
-  cout << "TrailTracking_Advance()---" << endl;
+  //cout << "TrailTracking_Advance()---" << endl;
 
   return nGoodTrails;
  

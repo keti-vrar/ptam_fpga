@@ -233,23 +233,24 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
                  *(status_reg_ptr) |= 0x10;
 
-                 cout << "<<< SignalTap Triggered >>>" << endl;
+                 /*cout << "<<< SignalTap Triggered >>>" << endl;
                  cout << "corNum_lv0: " << corNum_lv0 << ", corNum_lv1: " << corNum_lv1 << ", corNum_lv2: " << corNum_lv2 << ", corNum_lv3: " << corNum_lv3 << endl;
                  cout << "corner_result: " << corner_result << endl;
-
+                 */
                  *(status_reg_ptr) = 0x0;
                  
                  badCorner = 0x1;
-                 cout << "return from MakeKeyFrame_Lite" << endl;
+                 //cout << "return from MakeKeyFrame_Lite" << endl;
                  *(status_reg_ptr) = 0x80000000;
                  usleep(1000);
                  *(status_reg_ptr) = 0x0;
                  return;
               } 
-              cout << "waitCnt: " << waitCnt << endl;
+              //cout << "waitCnt: " << waitCnt << endl;
               break;
            }
-           printf("Reg: %d\r", status);
+           //printf("Reg: %d\r", status);
+           printf(".\r");
            waitCnt++;
            //usleep(2000);
         }
@@ -324,7 +325,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
               //   
            }
            badCorner = 0x0;
-           cout << "lev: " << i << ", NumOfCorner: " << num << ", AddrOfCorner: " << result << endl;
+           //cout << "lev: " << i << ", NumOfCorner: " << num << ", AddrOfCorner: " << result << endl;
 
            try {
               a = new unsigned int[num];
@@ -366,7 +367,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
            if (num == lev.vCorners.size()) {
                same = 1;
            }
-           cout << "CN-NumReg: " << num << ", CN-Vec: " << lev.vCorners.size() << "?=" << same << endl;
+           //cout << "CN-NumReg: " << num << ", CN-Vec: " << lev.vCorners.size() << "?=" << same << endl;
  
            const ptam::PtamParamsConfig& pPars = PtamParameters::varparams();
            if (pPars.AdaptiveThrs) {
@@ -443,7 +444,7 @@ void KeyFrame::MakeKeyFrame_Rest()
     for(vector<ImageRef>::iterator i=lev.vMaxCorners.begin(); i!=lev.vMaxCorners.end(); i++)
     {
       if(!lev.im.in_image_with_border(*i, 2)) { //5)) { //10)) {
-         cout << "!lev.im.in_image_wih_border" << endl;
+         //cout << "!lev.im.in_image_wih_border" << endl;
          continue;
       }
       double dSTScore = FindShiTomasiScoreAtPoint(lev.im, 3, *i);

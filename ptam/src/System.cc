@@ -16,12 +16,14 @@
 #include <cvd/vision.h>
 
 #include "ros/time.h"
+#include "std_msgs/Float32MultiArray.h"
 
 using namespace CVD;
 using namespace std;
 using namespace GVars3;
 
 int badCorner = 0;
+ros::Publisher pub_poseArr;
 
 System::System() :
       nh_("vslam"), image_nh_(""), first_frame_(true), mpMap(NULL)
@@ -32,6 +34,8 @@ System::System() :
   pub_info_ = nh_.advertise<ptam_com::ptam_info> ("info", 1);
   srvPC_ = nh_.advertiseService("pointcloud", &System::pointcloudservice,this);
   srvKF_ = nh_.advertiseService("keyframes", &System::keyframesservice,this);
+
+  pub_poseArr = nh_.advertise<std_msgs::Float32MultiArray>("poseArr", 100);
 
   sub_imu_ = nh_.subscribe("imu", 100, &System::imuCallback, this);
   sub_kb_input_ = nh_.subscribe("key_pressed", 100, &System::keyboardCallback, this);
@@ -158,7 +162,7 @@ void System::imageCallback(const sensor_msgs::ImageConstPtr & img)
   
   // Check the return val of TrackFrame, Return if failed.
   if (badCorner) {
-     cout << "return from imageCallback" << endl;
+     //cout << "return from imageCallback" << endl;
      badCorner = 0x0;
      return;
   }  
@@ -294,6 +298,7 @@ void System::publishPoseAndInfo(const std_msgs::Header & header)
 
   static float fps = 0;
   static double last_time = 0;
+  std_msgs::Float32MultiArray msg;
 
   std::string frame_id(header.frame_id);
 
@@ -313,8 +318,25 @@ void System::publishPoseAndInfo(const std_msgs::Header & header)
   {
     TooN::SE3<double> pose = mpTracker->GetCurrentPose();
     //world in the camera frame
-    TooN::Matrix<3, 3, double> r_ptam = pose.get_rotation().get_matrix();
-    TooN::Vector<3, double> t_ptam =  pose.get_translation();
+    //TooN::Matrix<3, 3, double> r_ptam = pose.get_rotation().get_matrix();
+    //TooN::Vector<3, double> t_ptam =  pose.get_translation();
+    TooN::Matrix<3, 3, double> r_ptam = pose.get_rotation().get_matrix().T(); // cfromw
+    TooN::Vector<3, double> t_ptam =  - r_ptam * pose.get_translation(); // cfromw
+
+    //Composite Rot_3x3 + Tran1x3
+    msg.data.push_back(r_ptam(0, 0));
+    msg.data.push_back(r_ptam(0, 1));
+    msg.data.push_back(r_ptam(0, 2));
+    msg.data.push_back(r_ptam(1, 0));
+    msg.data.push_back(r_ptam(1, 1));
+    msg.data.push_back(r_ptam(1, 2));
+    msg.data.push_back(r_ptam(2, 0));
+    msg.data.push_back(r_ptam(2, 1));
+    msg.data.push_back(r_ptam(2, 2));
+    msg.data.push_back(t_ptam[0]);
+    msg.data.push_back(t_ptam[1]);
+    msg.data.push_back(t_ptam[2]);
+    pub_poseArr.publish(msg);
 
     tf::StampedTransform transform_ptam(tf::Transform(tf::Matrix3x3(r_ptam(0, 0), r_ptam(0, 1), r_ptam(0, 2), r_ptam(1, 0), r_ptam(1, 1), r_ptam(1, 2), r_ptam(2, 0), r_ptam(2, 1), r_ptam(2, 2))
     , tf::Vector3(t_ptam[0] / scale, t_ptam[1] / scale, t_ptam[2] / scale)), header.stamp, frame_id, PtamParameters::fixparams().parent_frame);

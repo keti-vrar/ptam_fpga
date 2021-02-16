@@ -20,7 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
 )
 
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 3.4 REQUIRED)
 
 generate_dynamic_reconfigure_options(cfg/PTAMVisualizerParams.cfg cfg/PtamParams.cfg)
 
@@ -108,6 +108,7 @@ set(PTAM_LIBRARIES GL glut cvd GVars3_headless agast blas lapack)
 
 add_definitions(-DCVD_HAVE_TOON)
 add_definitions(-DKF_REPROJ)
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_BUILD_TYPE Release)
 
 # PTAM executable

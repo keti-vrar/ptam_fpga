@@ -133,7 +133,7 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
   //gettimeofday(&t0, NULL);
   mCurrentKF->MakeKeyFrame_Lite(imFrame);
   if (badCorner == 0x1) {
-     cout << "return from TrackFrame" << endl;
+     //cout << "return from TrackFrame" << endl;
      return;
   }
   //gettimeofday(&t1, NULL);

@@ -24,7 +24,7 @@ MaxKFDistWiggleMult: 1
 MaxPatchesPerFrame: 300
 MaxKF: 15
 parent_frame: world
-TrackingQualityFoundPixels: 50
+TrackingQualityFoundPixels: 30
 UseKFPixelDist: True
 NoLevelZeroMapPoints: True
 FASTMethod: FAST9_nonmax

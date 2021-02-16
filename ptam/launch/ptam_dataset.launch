@@ -1,5 +1,7 @@
+
 <launch>
-    <node name="ptam" pkg="ptam" type="ptam" clear_params="true" output="screen">
+   <param name="use_sim_time" value="true"/> 
+   <node name="ptam" pkg="ptam" type="ptam" clear_params="true" output="screen">
 	    <remap from="image" to="/camera/rgb/image_mono" />
         <remap from="pose" to="pose"/>
 	    <rosparam file="$(find ptam)/PtamFixParams.yaml"/>
